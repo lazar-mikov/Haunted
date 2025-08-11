@@ -1,0 +1,14 @@
+:root { color-scheme: dark; }
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; padding:24px; background:#0b0b12; color:#eaeaea; }
+.title { margin:0; }
+.row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+.card { background:#141422; padding:16px; border-radius:12px; margin:16px 0; box-shadow: 0 4px 20px rgba(0,0,0,.25); }
+button { padding:10px 14px; border-radius:10px; border:0; cursor:pointer; background:#2c2c3e; color:#eaeaea; }
+button.ok { background:#2a7a3b; color:#fff; }
+button.kill { background:#9a1a1a; color:#fff; }
+input { padding:10px 12px; border-radius:10px; border:1px solid #2a2a3a; background:#0f0f18; color:#eaeaea; min-width:280px; }
+video { width:100%; max-width:900px; background:#000; border-radius:12px; }
+.muted { opacity:.85; }
+.small { font-size:.95rem; }
+.divider { height:1px; background:#26263a; margin:14px 0; }
+
