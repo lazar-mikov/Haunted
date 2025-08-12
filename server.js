@@ -109,3 +109,14 @@ app.post("/api/kill", (req, res) => {
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Haunted demo running at http://localhost:${port}`));
+
+// health check for IFTTT
+app.get('/ifttt/v1/status', (req, res) => {
+  res.status(200).send(); // OK
+});
+
+// identify the signed-in user to IFTTT
+app.get('/ifttt/v1/user/info', (req, res) => {
+  // TODO: return the real user; for now a stable demo user id is fine
+  res.json({ data: { id: "demo-user-001", name: "Haunted Demo User" }});
+});
