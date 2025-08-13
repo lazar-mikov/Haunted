@@ -2,9 +2,17 @@ import express from "express";
 import axios from "axios";
 import cookieSession from "cookie-session";
 import dotenv from "dotenv";
+import crypto from "crypto";
+
+
+
 dotenv.config();
 
 const app = express();
+
+
+
+
 app.use(express.json());
 app.use(cookieSession({
   name: "sess",
@@ -12,6 +20,9 @@ app.use(cookieSession({
   httpOnly: true,
   sameSite: "lax"
 }));
+
+
+
 
 // Serve static frontend
 app.use(express.static("public"));
@@ -107,16 +118,80 @@ app.post("/api/kill", (req, res) => {
   res.json({ ok: true });
 });
 
+
+// === IFTTT minimal OAuth & endpoints (safe to paste once) ===
+// Place this after you have: import express from "express"; const app = express();
+
+(() => {
+  if (!app || !app.locals) return;                 // requires your existing `app`
+  if (app.locals.__iftttWired) return;             // prevent double-registration
+  app.locals.__iftttWired = true;
+
+  // In-memory stores (fine for demo; replace with Redis/DB later)
+  const authCodes = new Map();   // code -> { userId, createdAt }
+  const tokens    = new Map();   // accessToken -> { userId, createdAt }
+
+  // 1) Health check (IFTTT pings this)
+  app.get("/ifttt/v1/status", (req, res) => res.sendStatus(200));
+
+  // 2) Who is the current user? (needs Bearer token)
+  app.get("/ifttt/v1/user/info", (req, res) => {
+    const auth  = req.headers.authorization ?? "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+    const t = token && tokens.get(token);
+    if (!t) return res.status(401).json({ errors: [{ message: "invalid_token" }] });
+    res.json({ data: { id: t.userId, name: "Haunted Demo User" } });
+  });
+
+  // 3) OAuth authorize (IFTTT sends user here; we return a ?code=...)
+  app.get("/oauth/authorize", (req, res) => {
+    const { client_id, response_type, redirect_uri, state } = req.query;
+    if (client_id !== process.env.IFTTT_CLIENT_ID)  return res.status(400).send("bad client_id");
+    if (response_type !== "code")                   return res.status(400).send("response_type must be code");
+    if (!redirect_uri)                              return res.status(400).send("missing redirect_uri");
+
+    // Demo: auto-approve a fixed user. Replace with real login/consent later.
+    const userId = "demo-user-001";
+    const code = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    authCodes.set(code, { userId, createdAt: Date.now() });
+
+    const u = new URL(redirect_uri);
+    u.searchParams.set("code", code);
+    if (state) u.searchParams.set("state", state);
+    res.redirect(u.toString());
+  });
+
+  // 4) OAuth token (IFTTT exchanges code -> access_token)
+  app.post("/oauth/token", express.urlencoded({ extended: true }), (req, res) => {
+    const { grant_type, code, client_id, client_secret } = req.body ?? {};
+
+    if (client_id !== process.env.IFTTT_CLIENT_ID)
+      return res.status(400).json({ error: "invalid_client" });
+    if (client_secret !== process.env.IFTTT_CLIENT_SECRET)
+      return res.status(400).json({ error: "invalid_client_secret" });
+
+    if (grant_type === "authorization_code") {
+      const entry = authCodes.get(code);
+      if (!entry) return res.status(400).json({ error: "invalid_grant" });
+      authCodes.delete(code); // one-time use
+
+      const access_token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      tokens.set(access_token, { userId: entry.userId, createdAt: Date.now() });
+
+      return res.json({ token_type: "bearer", access_token, expires_in: 31536000 });
+    }
+
+    return res.status(400).json({ error: "unsupported_grant_type" });
+  });
+
+  // (Optional) quick dev helper to inspect the returned code
+  app.get("/dev/callback", (req, res) => {
+    res.type("text").send(`code=${req.query.code || ""}\nstate=${req.query.state || ""}`);
+  });
+})();
+
+
+
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Haunted demo running at http://localhost:${port}`));
 
-// health check for IFTTT
-app.get('/ifttt/v1/status', (req, res) => {
-  res.status(200).send(); // OK
-});
-
-// identify the signed-in user to IFTTT
-app.get('/ifttt/v1/user/info', (req, res) => {
-  // TODO: return the real user; for now a stable demo user id is fine
-  res.json({ data: { id: "demo-user-001", name: "Haunted Demo User" }});
-});
