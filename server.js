@@ -196,24 +196,23 @@ app.post("/ifttt/v1/triggers/new_thing_created", (req, res) => {
 
   const now = Math.floor(Date.now() / 1000);
 
-  // IFTTT wants at least 3 items; respect limit if provided, but never below 3
-  const limitRaw = Number(req.body?.limit);
-  const limit = Math.max(3, Math.min(50, isFinite(limitRaw) ? limitRaw : 3));
+  // Parse limit from request, default to 50 if missing
+  let limit = parseInt(req.body?.limit, 10);
+  if (isNaN(limit)) limit = 50;
 
-  // Build uniform items (every item has ALL the same ingredients)
+  // Clamp limit to [0, 50]
+  if (limit < 0) limit = 0;
+  if (limit > 50) limit = 50;
+
   const makeItem = (i) => {
-    const ts = now - i * 60; // 1 minute apart, newest first
+    const ts = now - i * 60;
     return {
-      // sample "ingredients" (you can rename later to match your real trigger)
       title: `Test thing #${i + 1}`,
       message: "Hello from Haunted",
-      // REQUIRED: ISO8601 timestamp field named EXACTLY created_at
       created_at: new Date(ts * 1000).toISOString(),
-
-      // REQUIRED meta block
       meta: {
-        id: `demo-${ts}`,   // unique per item
-        timestamp: ts       // Unix seconds, descending
+        id: `demo-${ts}`,
+        timestamp: ts
       }
     };
   };
@@ -221,6 +220,7 @@ app.post("/ifttt/v1/triggers/new_thing_created", (req, res) => {
   const data = Array.from({ length: limit }, (_, i) => makeItem(i));
   res.status(200).json({ data });
 });
+
 
   // 4) OAuth authorize (demo auto-approves a fixed user)
   app.get("/oauth/authorize", (req, res) => {
