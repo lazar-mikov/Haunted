@@ -132,7 +132,18 @@ app.post("/api/kill", (req, res) => {
   const tokens    = new Map();   // accessToken -> { userId, createdAt }
 
   // 1) Health check (IFTTT pings this)
-  app.get("/ifttt/v1/status", (req, res) => res.sendStatus(200));
+ app.get("/ifttt/v1/status", (req, res) => {
+  const got =
+    req.get("IFTTT-Service-Key") ||
+    req.get("IFTTT-Channel-Key") || // legacy header some docs still show
+    req.get("ifttt-service-key") ||
+    req.get("ifttt-channel-key");
+
+  if (!got || got !== process.env.IFTTT_SERVICE_KEY) {
+    return res.status(401).json({ errors: [{ message: "invalid channel key" }] });
+  }
+  return res.status(200).json({}); // IFTTT expects 200 + empty JSON object
+});
 
   // 2) Who is the current user? (needs Bearer token)
   app.get("/ifttt/v1/user/info", (req, res) => {
