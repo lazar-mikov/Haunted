@@ -122,6 +122,7 @@ app.post("/api/kill", (req, res) => {
 // === IFTTT minimal OAuth & endpoints (safe to paste once) ===
 // Place this after you have: import express from "express"; const app = express();
 
+// === IFTTT minimal OAuth & endpoints (copy/paste this whole block) ===
 (() => {
   if (!app || !app.locals) return;                 // requires your existing `app`
   if (app.locals.__iftttWired) return;             // prevent double-registration
@@ -131,7 +132,7 @@ app.post("/api/kill", (req, res) => {
   const authCodes = new Map();   // code -> { userId, createdAt }
   const tokens    = new Map();   // accessToken -> { userId, createdAt }
 
-  // 1) Health check (IFTTT pings this)
+  // 1) Health check
   app.get("/ifttt/v1/status", (req, res) => {
     const got =
       req.get("IFTTT-Service-Key") ||
@@ -145,7 +146,7 @@ app.post("/api/kill", (req, res) => {
     return res.status(200).json({});
   });
 
-  // 1b) Test setup (IFTTT calls this during Endpoint tests)
+  // 1b) Test setup: create a test token and sample values
   app.post("/ifttt/v1/test/setup", (req, res) => {
     const got =
       req.get("IFTTT-Service-Key") ||
@@ -157,23 +158,26 @@ app.post("/api/kill", (req, res) => {
       return res.status(401).json({ errors: [{ message: "invalid channel key" }] });
     }
 
-    // Create a test access token for the demo user so /user/info will pass
+    // Make a test access token so /user/info and triggers can auth
     const access_token = Math.random().toString(36).slice(2) + Date.now().toString(36);
     tokens.set(access_token, { userId: "demo-user-001", createdAt: Date.now() });
 
-    // Minimal valid payload for IFTTT Endpoint tests
+    // Provide empty samples (enough for endpoint tests)
     return res.status(200).json({
       data: {
         accessToken: access_token,
         samples: {
+          // if you later add trigger fields, put sample values here
           actions: {},
-          triggers: {}
+          triggers: {
+            // new_thing_created: { /* triggerFields go here if you add any */ }
+          }
         }
       }
     });
   });
 
-  // 2) Who is the current user? (needs Bearer token)
+  // 2) User info (Bearer token)
   app.get("/ifttt/v1/user/info", (req, res) => {
     const auth  = req.headers.authorization ?? "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
@@ -182,14 +186,41 @@ app.post("/api/kill", (req, res) => {
     res.json({ data: { id: t.userId, name: "Haunted Demo User" } });
   });
 
-  // 3) OAuth authorize (IFTTT sends user here; we return a ?code=...)
+  // 3) REQUIRED for the test you're stuck on:
+  //    Trigger: new_thing_created
+  //    Returns recent items with meta.id + meta.timestamp (Unix seconds)
+  app.post("/ifttt/v1/triggers/new_thing_created", (req, res) => {
+    // Auth via Bearer token (authenticated service)
+    const auth  = req.headers.authorization ?? "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+    const t = token && tokens.get(token);
+    if (!t) return res.status(401).json({ errors: [{ message: "invalid_token" }] });
+
+    const now = Math.floor(Date.now() / 1000);
+    const limit = Math.max(1, Math.min(50, Number(req.body?.limit) || 1));
+
+    // Minimal, valid trigger items (add real ingredients later)
+    const makeItem = (i) => ({
+      title: `Test thing #${i + 1}`,
+      message: "Hello from Haunted",
+      posted_at: new Date((now - i * 60) * 1000).toISOString(),
+      meta: {
+        id: `demo-${now - i}`,          // must be unique per item
+        timestamp: now - i              // Unix seconds, descending order
+      }
+    });
+
+    const items = Array.from({ length: limit }, (_, i) => makeItem(i));
+    return res.status(200).json({ data: items });
+  });
+
+  // 4) OAuth authorize (demo auto-approves a fixed user)
   app.get("/oauth/authorize", (req, res) => {
     const { client_id, response_type, redirect_uri, state } = req.query;
     if (client_id !== process.env.IFTTT_CLIENT_ID)  return res.status(400).send("bad client_id");
     if (response_type !== "code")                   return res.status(400).send("response_type must be code");
     if (!redirect_uri)                              return res.status(400).send("missing redirect_uri");
 
-    // Demo: auto-approve a fixed user. Replace with real login/consent later.
     const userId = "demo-user-001";
     const code = Math.random().toString(36).slice(2) + Date.now().toString(36);
     authCodes.set(code, { userId, createdAt: Date.now() });
@@ -200,10 +231,9 @@ app.post("/api/kill", (req, res) => {
     res.redirect(u.toString());
   });
 
-  // 4) OAuth token (IFTTT exchanges code -> access_token)
+  // 5) OAuth token
   app.post("/oauth/token", express.urlencoded({ extended: true }), (req, res) => {
     const { grant_type, code, client_id, client_secret } = req.body ?? {};
-
     if (client_id !== process.env.IFTTT_CLIENT_ID)
       return res.status(400).json({ error: "invalid_client" });
     if (client_secret !== process.env.IFTTT_CLIENT_SECRET)
@@ -212,14 +242,13 @@ app.post("/api/kill", (req, res) => {
     if (grant_type === "authorization_code") {
       const entry = authCodes.get(code);
       if (!entry) return res.status(400).json({ error: "invalid_grant" });
-      authCodes.delete(code); // one-time use
+      authCodes.delete(code);
 
       const access_token = Math.random().toString(36).slice(2) + Date.now().toString(36);
       tokens.set(access_token, { userId: entry.userId, createdAt: Date.now() });
 
       return res.json({ token_type: "bearer", access_token, expires_in: 31536000 });
     }
-
     return res.status(400).json({ error: "unsupported_grant_type" });
   });
 
