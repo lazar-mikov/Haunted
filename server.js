@@ -186,33 +186,41 @@ app.post("/api/kill", (req, res) => {
     res.json({ data: { id: t.userId, name: "Haunted Demo User" } });
   });
 
-  // 3) REQUIRED for the test you're stuck on:
-  //    Trigger: new_thing_created
-  //    Returns recent items with meta.id + meta.timestamp (Unix seconds)
-  app.post("/ifttt/v1/triggers/new_thing_created", (req, res) => {
-    // Auth via Bearer token (authenticated service)
-    const auth  = req.headers.authorization ?? "";
-    const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-    const t = token && tokens.get(token);
-    if (!t) return res.status(401).json({ errors: [{ message: "invalid_token" }] });
+  // 3) Trigger: new_thing_created — returns recent items with required fields
+app.post("/ifttt/v1/triggers/new_thing_created", (req, res) => {
+  // Auth via Bearer token
+  const auth  = req.headers.authorization ?? "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  const t = token && tokens.get(token);
+  if (!t) return res.status(401).json({ errors: [{ message: "invalid_token" }] });
 
-    const now = Math.floor(Date.now() / 1000);
-    const limit = Math.max(1, Math.min(50, Number(req.body?.limit) || 1));
+  const now = Math.floor(Date.now() / 1000);
 
-    // Minimal, valid trigger items (add real ingredients later)
-    const makeItem = (i) => ({
+  // IFTTT wants at least 3 items; respect limit if provided, but never below 3
+  const limitRaw = Number(req.body?.limit);
+  const limit = Math.max(3, Math.min(50, isFinite(limitRaw) ? limitRaw : 3));
+
+  // Build uniform items (every item has ALL the same ingredients)
+  const makeItem = (i) => {
+    const ts = now - i * 60; // 1 minute apart, newest first
+    return {
+      // sample "ingredients" (you can rename later to match your real trigger)
       title: `Test thing #${i + 1}`,
       message: "Hello from Haunted",
-      posted_at: new Date((now - i * 60) * 1000).toISOString(),
-      meta: {
-        id: `demo-${now - i}`,          // must be unique per item
-        timestamp: now - i              // Unix seconds, descending order
-      }
-    });
+      // REQUIRED: ISO8601 timestamp field named EXACTLY created_at
+      created_at: new Date(ts * 1000).toISOString(),
 
-    const items = Array.from({ length: limit }, (_, i) => makeItem(i));
-    return res.status(200).json({ data: items });
-  });
+      // REQUIRED meta block
+      meta: {
+        id: `demo-${ts}`,   // unique per item
+        timestamp: ts       // Unix seconds, descending
+      }
+    };
+  };
+
+  const data = Array.from({ length: limit }, (_, i) => makeItem(i));
+  res.status(200).json({ data });
+});
 
   // 4) OAuth authorize (demo auto-approves a fixed user)
   app.get("/oauth/authorize", (req, res) => {
