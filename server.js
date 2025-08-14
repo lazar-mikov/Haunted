@@ -221,6 +221,105 @@ app.post("/ifttt/v1/triggers/new_thing_created", (req, res) => {
   res.status(200).json({ data });
 });
 
+// 3b) Query: list_all_things — paginated, optional metadata, tolerant to extra input
+app.post("/ifttt/v1/queries/list_all_things", (req, res) => {
+  // --- Auth: Bearer token required ---
+  const auth = req.headers.authorization ?? "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  const t = token && tokens.get(token);
+  if (!t) return res.status(401).json({ errors: [{ message: "invalid_token" }] });
+
+  // --- Parse inputs (ignore any extra fields the test sends) ---
+  // include: array of strings, e.g., ["metadata"]; empty array should still work
+  const include = Array.isArray(req.body?.include) ? req.body.include : null;
+
+  // limit: default 50 if missing; clamp to [0, 50]
+  let limit = parseInt(req.body?.limit, 10);
+  if (isNaN(limit)) limit = 50;
+  if (limit < 0) limit = 0;
+  if (limit > 50) limit = 50;
+
+  // cursor: opaque string -> decode to offset; if missing, start at 0
+  const decodeCursor = (c) => {
+    try {
+      const s = Buffer.from(String(c), "base64").toString("utf8");
+      const n = parseInt(s.replace(/^offset:/, ""), 10);
+      return Number.isFinite(n) && n >= 0 ? n : 0;
+    } catch {
+      return 0;
+    }
+  };
+  const encodeCursor = (offset) => Buffer.from(`offset:${offset}`).toString("base64");
+  const start = req.body?.cursor ? decodeCursor(req.body.cursor) : 0;
+
+  // --- Fake dataset (deterministic) ---
+  // At least a few items so pagination is testable.
+  const baseCreated = Date.now();
+  const ALL = Array.from({ length: 5 }, (_, i) => {
+    const ts = new Date(baseCreated - i * 60_000); // 1 minute apart, newest first
+    const item = {
+      id: `thing-${i + 1}`,
+      name: `Haunted Thing #${i + 1}`,
+      created_at: ts.toISOString(), // ISO8601 (the test checks this)
+    };
+    // Only include metadata if requested (include contains "metadata")
+    if (include && include.includes("metadata")) {
+      item.metadata = { brightness: (i + 1) * 10, room: i % 2 ? "hall" : "attic" };
+    }
+    return item;
+  });
+
+  // --- Pagination window ---
+  const slice = ALL.slice(start, start + limit);
+
+  // Next cursor only when there are more items beyond this page
+  const nextOffset = start + slice.length;
+  const cursor = nextOffset < ALL.length ? encodeCursor(nextOffset) : undefined;
+
+  // --- Response shape ---
+  // Keep it minimal and consistent; omit cursor when there isn't one.
+  const body = { data: slice };
+  if (cursor) body.cursor = cursor;
+
+  return res.status(200).json(body);
+});
+
+// 3c) Action: create_new_thing — accepts fields, optional metadata, tolerant to extras
+app.post("/ifttt/v1/actions/create_new_thing", (req, res) => {
+  // --- Auth: Bearer token required ---
+  const auth = req.headers.authorization ?? "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  const t = token && tokens.get(token);
+  if (!t) return res.status(401).json({ errors: [{ message: "invalid_token" }] });
+
+  // --- Parse body (ignore unknowns) ---
+  // IFTTT may send: { "actionFields": { ... }, "include": ["metadata"] }
+  const actionFields = req.body?.actionFields && typeof req.body.actionFields === "object"
+    ? req.body.actionFields
+    : {};
+  const include = Array.isArray(req.body?.include) ? req.body.include : [];
+
+  // Simulate creating a “thing”
+  const createdAt = new Date();
+  const id = `new-${createdAt.getTime()}`; // opaque id string
+
+  // Build response item
+  const item = { id };
+
+  // Only add metadata when explicitly asked
+  if (include.includes("metadata")) {
+    item.metadata = {
+      created_at: createdAt.toISOString(),
+      // echo back a couple of fields for visibility; safe to ignore if none provided
+      received_fields: Object.keys(actionFields)
+    };
+  }
+
+  // Required action response shape: { data: [ { id, ... } ] }
+  return res.status(200).json({ data: [item] });
+});
+
+
 
   // 4) OAuth authorize (demo auto-approves a fixed user)
   app.get("/oauth/authorize", (req, res) => {
