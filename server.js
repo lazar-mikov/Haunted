@@ -132,18 +132,46 @@ app.post("/api/kill", (req, res) => {
   const tokens    = new Map();   // accessToken -> { userId, createdAt }
 
   // 1) Health check (IFTTT pings this)
- app.get("/ifttt/v1/status", (req, res) => {
-  const got =
-    req.get("IFTTT-Service-Key") ||
-    req.get("IFTTT-Channel-Key") || // legacy header some docs still show
-    req.get("ifttt-service-key") ||
-    req.get("ifttt-channel-key");
+  app.get("/ifttt/v1/status", (req, res) => {
+    const got =
+      req.get("IFTTT-Service-Key") ||
+      req.get("IFTTT-Channel-Key") ||
+      req.get("ifttt-service-key") ||
+      req.get("ifttt-channel-key");
 
-  if (!got || got !== process.env.IFTTT_SERVICE_KEY) {
-    return res.status(401).json({ errors: [{ message: "invalid channel key" }] });
-  }
-  return res.status(200).json({}); // IFTTT expects 200 + empty JSON object
-});
+    if (!got || got !== process.env.IFTTT_SERVICE_KEY) {
+      return res.status(401).json({ errors: [{ message: "invalid channel key" }] });
+    }
+    return res.status(200).json({});
+  });
+
+  // 1b) Test setup (IFTTT calls this during Endpoint tests)
+  app.post("/ifttt/v1/test/setup", (req, res) => {
+    const got =
+      req.get("IFTTT-Service-Key") ||
+      req.get("IFTTT-Channel-Key") ||
+      req.get("ifttt-service-key") ||
+      req.get("ifttt-channel-key");
+
+    if (!got || got !== process.env.IFTTT_SERVICE_KEY) {
+      return res.status(401).json({ errors: [{ message: "invalid channel key" }] });
+    }
+
+    // Create a test access token for the demo user so /user/info will pass
+    const access_token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    tokens.set(access_token, { userId: "demo-user-001", createdAt: Date.now() });
+
+    // Minimal valid payload for IFTTT Endpoint tests
+    return res.status(200).json({
+      data: {
+        accessToken: access_token,
+        samples: {
+          actions: {},
+          triggers: {}
+        }
+      }
+    });
+  });
 
   // 2) Who is the current user? (needs Bearer token)
   app.get("/ifttt/v1/user/info", (req, res) => {
