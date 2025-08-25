@@ -143,7 +143,7 @@ app.post("/api/kill", (req, res) => {
     if (!got || got !== process.env.IFTTT_SERVICE_KEY) {
       return res.status(401).json({ errors: [{ message: "invalid channel key" }] });
     }
-    return res.status(200).json({});
+    return res.sendStatus(200);
   });
 
   // 1b) Test setup: create a test token and sample values
