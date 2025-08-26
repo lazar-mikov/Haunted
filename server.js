@@ -179,17 +179,26 @@ app.post("/api/kill", (req, res) => {
 
   // === NEW: Action endpoint required by your Service ===
   app.post("/ifttt/v1/actions/run_effect", (req, res) => {
-    // Accept either nested or flat shape
-    const effect = req.body?.actionFields?.effect ?? req.body?.effect;
-    const allowed = new Set(["blackout", "flash_red", "plug_on", "reset"]);
-    if (!allowed.has(effect)) {
-      return res.status(400).json({
-        errors: [{ message: "Invalid 'effect'. Use blackout, flash_red, plug_on, reset." }]
-      });
-    }
-    // For endpoint tests, just ACK with an id
-    return res.status(200).json({ data: [{ id: `run-${Date.now()}` }] });
-  });
+  // ---- Auth check (required by Endpoint Tests) ----
+  const auth  = req.headers.authorization ?? "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  const t = token && tokens.get(token);
+  if (!t) {
+    return res.status(401).json({ errors: [{ message: "invalid_token" }] });
+  }
+
+  // ---- Validate payload ----
+  const effect = req.body?.actionFields?.effect ?? req.body?.effect;
+  const allowed = new Set(["blackout", "flash_red", "plug_on", "reset"]);
+  if (!allowed.has(effect)) {
+    return res.status(400).json({
+      errors: [{ message: "Invalid 'effect'. Use blackout, flash_red, plug_on, reset." }]
+    });
+  }
+
+  // ---- Success ----
+  return res.status(200).json({ data: [{ id: `run-${Date.now()}` }] });
+});
 
   // === NEW: Trigger endpoint the tests are checking ===
   app.post("/ifttt/v1/triggers/effect_requested", (req, res) => {
