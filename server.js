@@ -19,6 +19,17 @@ app.use(cookieSession({
 // Serve static frontend
 app.use(express.static("public"));
 
+/** ---------- [ADDED] One-button IFTTT Connect redirect ---------- */
+// Set IFTTT_CONNECT_URL in env (e.g. https://ift.tt/GVhyKwZ)
+// This sends the viewer to Connect and returns them to /watch?autoplay=1
+app.get("/connect", (req, res) => {
+  const connectUrl = process.env.IFTTT_CONNECT_URL;
+  if (!connectUrl) return res.status(500).send("IFTTT_CONNECT_URL is not set");
+  const u = new URL(connectUrl);
+  u.searchParams.set("state", "/watch?autoplay=1");
+  res.redirect(u.toString());
+});
+
 /** ---------- OAuth (IFTTT Connect shell for future) ---------- */
 app.get("/auth/ifttt/start", (req, res) => {
   const state = Math.random().toString(36).slice(2);
@@ -81,12 +92,29 @@ app.post("/api/trigger", async (req, res) => {
       if (!event) return res.status(400).json({ ok: false, error: "missing event" });
 
       // OPTION A (future): use IFTTT Connect access_token here
+      // ---------- [FIXED] Use correct Connect Action shape + URL ----------
       if (process.env.IFTTT_CONNECT_ACTION_URL && req.session.ifttt?.access_token) {
-        await axios.post(process.env.IFTTT_CONNECT_ACTION_URL, { event, payload }, {
-          headers: { Authorization: `Bearer ${req.session.ifttt.access_token}` },
-          timeout: 5000
-        });
-        return res.json({ ok: true, via: "ifttt-connect" });
+        const allowed = new Set(["blackout", "flash_red", "plug_on", "reset"]);
+        if (!allowed.has(event)) {
+          return res.status(400).json({ ok: false, error: "invalid event" });
+        }
+        try {
+          await axios.post(
+            process.env.IFTTT_CONNECT_ACTION_URL, // e.g. https://connect.ifttt.com/v2/actions/run_effect
+            { actionFields: { effect: event } },  // <-- IMPORTANT: actionFields.effect
+            {
+              headers: {
+                Authorization: `Bearer ${req.session.ifttt.access_token}`,
+                "Content-Type": "application/json"
+              },
+              timeout: 5000
+            }
+          );
+          return res.json({ ok: true, via: "ifttt-connect" });
+        } catch (e) {
+          console.error("IFTTT Connect error:", e?.response?.data || e.message);
+          return res.status(502).json({ ok: false, via: "ifttt-connect", error: "Connect action failed" });
+        }
       }
 
       // OPTION B (now): classic IFTTT Webhooks (fastest to demo)
