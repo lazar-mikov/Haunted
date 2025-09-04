@@ -131,6 +131,26 @@ app.post("/api/trigger", async (req, res) => {
   });
 });
 
+// DEV helper: copy latest IFTTT token into this browser session, then go to /watch
+app.get("/dev/prime-session", (req, res) => {
+  try {
+    const store = app.locals?.iftttTokens;
+    const latest = store && typeof store.forUser === "function" ? store.forUser("demo-user-001") : null;
+    if (!latest) {
+      return res
+        .status(400)
+        .type("text")
+        .send("No IFTTT token found yet. Complete /connect first, then retry this URL.");
+    }
+    req.session.ifttt = { access_token: latest.access_token };
+    res.redirect("/watch?autoplay=1");
+  } catch (e) {
+    console.error(e);
+    res.status(500).type("text").send("prime-session error");
+  }
+});
+
+
 async function handleTrigger(req, res, body) {
   try {
     const { event, payload } = body;
@@ -173,6 +193,8 @@ async function handleTrigger(req, res, body) {
     return res.status(500).json({ ok: false, error: "Trigger failed" });
   }
 }
+
+
 
 /** ---------- Kill switch ---------- */
 app.post("/api/kill", (req, res) => {
