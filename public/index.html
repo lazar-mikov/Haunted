@@ -1,55 +1,20 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>Haunted — Smart Home Demo</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link href="./style.css" rel="stylesheet" />
-</head>
-<body>
-<header class="row">
-  <h2 class="title">Haunted — Smart Home Demo</h2>
-  <button class="kill" id="killBtn">Stop All Effects</button>
-</header>
-
-<!-- PAGE 1 -->
-<section class="card" id="page1">
-  <h3>Connect your devices</h3>
-  <p class="muted">We will briefly control your <b>lights</b> and <b>plugs</b> to sync with the video. You can disconnect any time.</p>
-  <div class="row">
-    <a href="/auth/ifttt/start"><button class="ok">Continue (IFTTT one-tap)</button></a>
-    <!-- Later: buttons for Alexa / Google once implemented -->
-  </div>
-
-  <div class="divider"></div>
-
-  <p class="muted small"><b>Demo mode:</b> If you created IFTTT Webhooks applets for events (e.g., <code>lights_flicker</code>, <code>plug_fan_on</code>), paste your Maker key to test now.</p>
-  <div class="row">
-    <input id="makerKey" placeholder="IFTTT Maker key (temporary)" />
-    <button id="saveMakerKey">Save</button>
-  </div>
-</section>
-
-<!-- PAGE 2 -->
-<section class="card" id="page2" style="display:none">
-  <h3>Quick Test</h3>
-  <div class="row">
-    <button data-evt="lights_flicker">Test Lights Flicker</button>
-    <button data-evt="lights_red">Lights Red</button>
-    <button data-evt="plug_fan_on">Plug ON</button>
-    <button data-evt="plug_fan_off">Plug OFF</button>
-    <button data-evt="whisper_sound">Whisper</button>
-  </div>
-  <p class="muted small">Tip: Unplug heaters/irons. Use lamps, fans, and speakers.</p>
-</section>
-
-<!-- PAGE 3 -->
-<section class="card" id="page3" style="display:none">
-  <h3>Player</h3>
-  <video id="film" controls preload="metadata" src="./sample.mp4"></video>
-  <p class="muted small">Effects will sync at specific moments.</p>
-</section>
-
-<script src="./app.js"></script>
-</body>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Haunted Screening</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto; display:flex; align-items:center; justify-content:center; min-height:100dvh; }
+      button { font-size:1.1rem; padding:0.9rem 1.2rem; border-radius:10px; border:none; cursor:pointer; }
+    </style>
+  </head>
+  <body>
+    <button id="go">Allow & Play ▶️</button>
+    <script>
+      document.getElementById('go').addEventListener('click', () => {
+        window.location.href = '/connect';
+      });
+    </script>
+  </body>
 </html>

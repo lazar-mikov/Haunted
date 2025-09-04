@@ -1,114 +1,123 @@
 // Simple page state from query
 
-import express from "express";
-import dotenv from "dotenv";
+// public/app.js — runs in the browser
+
+// ——— basic UI hooks ———
+const film = document.getElementById("film");
+const statusBox = document.getElementById("status");
+const unmuteBtn = document.getElementById("unmute");
+const restartBtn = document.getElementById("restart");
+
+// ——— autoplay if we arrived from /connect?state=/watch?autoplay=1 ———
 const params = new URLSearchParams(location.search);
-const authed = params.get("authed") === "1";
-
-const page1 = document.getElementById("page1");
-const page2 = document.getElementById("page2");
-const page3 = document.getElementById("page3");
-
-dotenv.config();
-const app = express();
-app.use(express.json());
-
-// Test endpoint for IFTTT
-app.post("/ifttt-trigger", (req, res) => {
-  console.log("Trigger received:", req.body);
-  // For now just confirm receipt
-  res.json({ success: true, message: "IFTTT trigger received" });
-});
-
-// Root endpoint to confirm the app works
-app.get("/", (req, res) => {
-  res.send("HUNTED Demo Server is running!");
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-
-// If OAuth completed, show test + player
-if (authed) {
-  page1.style.display = "none";
-  page2.style.display = "block";
-  page3.style.display = "block";
+const shouldAutoplay = params.get("autoplay") === "1";
+if (shouldAutoplay && film) {
+  film.addEventListener("loadedmetadata", async () => {
+    try { await film.play(); } catch {}
+  });
 }
 
-document.getElementById("saveMakerKey").onclick = async () => {
-  const makerKey = document.getElementById("makerKey").value.trim();
-  if (!makerKey) return alert("Paste your Maker key from IFTTT Webhooks.");
-  const r = await fetch("/api/demo/maker-key", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ makerKey })
-  });
-  const j = await r.json();
-  if (j.ok) {
-    page2.style.display = "block";
-    page3.style.display = "block";
-    alert("Saved. Try the test buttons.");
-  } else {
-    alert(j.error || "Could not save key.");
-  }
+// ——— map YOUR labels -> IFTTT Action enum values ———
+// Your service Action supports: blackout | flash_red | plug_on | reset
+const EFFECT_MAP = {
+  lights_flicker: "blackout",
+  lights_red:     "flash_red",
+  plug_fan_on:    "plug_on",
+  plug_fan_off:   "reset",
+  whisper_sound:  "flash_red" // or delete this line if you don't want a cue here
 };
 
-document.getElementById("killBtn").onclick = async () => {
-  await fetch("/api/kill", { method: "POST" });
-  location.href = "/";
-};
-
-// Wire quick test buttons
-page2.querySelectorAll("button[data-evt]").forEach(btn => {
-  btn.onclick = () => fireEvent(btn.dataset.evt, { origin: "test" });
-});
-
-// ---- VIDEO TRIGGER DISPATCHER ----
-const film = document.getElementById("film");
-// Example schedule (seconds → event)
+// ——— define cue times ———
+// Option A: use your earlier seconds-based schedule:
 const schedule = [
-  { t: 5,   event: "lights_flicker" },
-  { t: 12,  event: "plug_fan_on" },
-  { t: 22,  event: "lights_red" },
-  { t: 27,  event: "whisper_sound" },
-  { t: 35,  event: "plug_fan_off" }
+  { t: 5,  event: "lights_flicker" },
+  { t: 12, event: "plug_fan_on"    },
+  { t: 22, event: "lights_red"     },
+  { t: 27, event: "whisper_sound"  },
+  { t: 35, event: "plug_fan_off"   }
 ];
 
-const fired = new Set();
-let poll;
+// If you prefer the other list, replace the above with:
+// const schedule = [
+//   { t: 15, effect: "blackout"  },
+//   { t: 22.5, effect: "flash_red" },
+//   { t: 36, effect: "plug_on"   },
+//   { t: 45, effect: "reset"     }
+// ];
 
-film.addEventListener("play", () => {
-  clearInterval(poll);
-  poll = setInterval(() => {
-    const now = Math.floor(film.currentTime);
-    for (const tr of schedule) {
-      if (tr.t === now && !fired.has(tr.t)) {
-        fired.add(tr.t);
-        fireEvent(tr.event, { origin: "video", at: now });
-      }
-    }
-  }, 500);
-});
 
-film.addEventListener("pause", () => clearInterval(poll));
-film.addEventListener("seeking", () => fired.clear());
-film.addEventListener("ended", () => clearInterval(poll));
+// ——— convert to ms + normalize to the enum effects ———
+const cues = schedule.map(c => {
+  const effect = c.effect || EFFECT_MAP[c.event];
+  return effect ? { t: c.t * 1000, effect, fired: false, src: c.event || effect } : null;
+}).filter(Boolean);
 
-// Fire trigger to backend
-async function fireEvent(event, payload) {
+// ——— fire a cue slightly EARLY to account for cloud/Alexa latency ———
+const EARLY_MS = 1200; // start here; tweak during dress rehearsal
+
+async function fireEffect(effect, extraPayload) {
   try {
     const r = await fetch("/api/trigger", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ event, payload })
+      body: JSON.stringify({ event: effect, payload: extraPayload || {} })
     });
     const j = await r.json();
     if (!j.ok) throw new Error(j.error || "Trigger failed");
-    console.log("Triggered:", event, payload, j.via);
+    if (statusBox) statusBox.textContent = `effect: ${effect} → ${j.via}`;
+    console.log("Triggered:", effect, j.via);
   } catch (e) {
+    if (statusBox) statusBox.textContent = `effect: ${effect} → ERROR`;
     console.error(e);
     alert("Trigger failed: " + e.message);
   }
+}
+
+// ——— high-precision scheduler using requestAnimationFrame ———
+if (film) {
+  let rafId = null;
+
+  function tick() {
+    const nowMs = film.currentTime * 1000;
+    for (const c of cues) {
+      if (!c.fired && nowMs >= (c.t - EARLY_MS)) {
+        c.fired = true;
+        fireEffect(c.effect, { origin: "video", at_ms: Math.round(nowMs), src: c.src });
+      }
+    }
+    rafId = requestAnimationFrame(tick);
+  }
+
+  film.addEventListener("play", () => {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(tick);
+  });
+
+  film.addEventListener("pause", () => {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+  });
+
+  film.addEventListener("seeking", () => {
+    const nowMs = film.currentTime * 1000;
+    // Allow re-firing for cues still in the future after seek
+    for (const c of cues) c.fired = nowMs >= (c.t - EARLY_MS);
+  });
+
+  film.addEventListener("ended", () => {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+  });
+}
+
+// ——— small UI niceties ———
+if (unmuteBtn && film) {
+  unmuteBtn.onclick = () => { film.muted = false; film.volume = 1.0; };
+}
+if (restartBtn && film) {
+  restartBtn.onclick = () => {
+    for (const c of cues) c.fired = false;
+    film.currentTime = 0;
+    film.play().catch(()=>{});
+  };
 }

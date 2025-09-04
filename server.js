@@ -3,6 +3,8 @@ import axios from "axios";
 import cookieSession from "cookie-session";
 import dotenv from "dotenv";
 import crypto from "crypto";
+import path from "path";
+import { fileURLToPath } from "url";
 
 dotenv.config();
 
@@ -18,6 +20,39 @@ app.use(cookieSession({
 
 // Serve static frontend
 app.use(express.static("public"));
+
+/** ---------- [ADDED] Serve /watch and auto-sync session token if missing ---------- */
+// If Connect returns to /watch?autoplay=1, make sure the session has an IFTTT access token.
+// We look up the latest token for our demo user from the in-memory token store and stash it in the session.
+// Then we serve public/watch.html (or fall back to 200 with a small hint if the file doesn't exist).
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.get("/watch", (req, res, next) => {
+  try {
+    // If session already has token, just serve the page.
+    if (!req.session.ifttt?.access_token) {
+      const tokens = app.locals?.iftttTokens;
+      if (tokens && typeof tokens.forUser === "function") {
+        const latest = tokens.forUser("demo-user-001"); // same userId used by your OAuth demo
+        if (latest) {
+          req.session.ifttt = { access_token: latest.access_token };
+        }
+      }
+    }
+    const filePath = path.join(__dirname, "public", "watch.html");
+    return res.sendFile(filePath, err => {
+      if (err) {
+        // If you haven't created public/watch.html yet, at least show a friendly message.
+        res
+          .status(200)
+          .type("html")
+          .send(`<h1>Haunted Demo</h1><p>Create <code>public/watch.html</code> with a button that POSTs to <code>/api/trigger</code>.<br/>You're at: ${req.originalUrl}</p>`);
+      }
+    });
+  } catch (e) {
+    next(e);
+  }
+});
 
 /** ---------- [ADDED] One-button IFTTT Connect redirect ---------- */
 // Set IFTTT_CONNECT_URL in env (e.g. https://ift.tt/GVhyKwZ)
@@ -91,8 +126,8 @@ app.post("/api/trigger", async (req, res) => {
       const { event, payload } = JSON.parse(Buffer.concat(chunks).toString());
       if (!event) return res.status(400).json({ ok: false, error: "missing event" });
 
-      // OPTION A (future): use IFTTT Connect access_token here
-      // ---------- [FIXED] Use correct Connect Action shape + URL ----------
+      // OPTION A: use IFTTT Connect access_token if present
+      // ---------- Use correct Connect Action shape + URL ----------
       if (process.env.IFTTT_CONNECT_ACTION_URL && req.session.ifttt?.access_token) {
         const allowed = new Set(["blackout", "flash_red", "plug_on", "reset"]);
         if (!allowed.has(event)) {
@@ -117,7 +152,7 @@ app.post("/api/trigger", async (req, res) => {
         }
       }
 
-      // OPTION B (now): classic IFTTT Webhooks (fastest to demo)
+      // OPTION B (fallback): classic IFTTT Webhooks
       if (!req.session.makerKey) {
         return res.status(400).json({ ok: false, error: "No Maker key (demo mode). Paste it on Page 1." });
       }
@@ -147,6 +182,22 @@ app.post("/api/kill", (req, res) => {
   // In-memory stores (fine for demo; replace with Redis/DB later)
   const authCodes = new Map();   // code -> { userId, createdAt }
   const tokens    = new Map();   // accessToken -> { userId, createdAt }
+
+  /** ---------- [ADDED] Expose token store via app.locals so /watch can sync ---------- */
+  app.locals.iftttTokens = {
+    // return latest token for a given userId (by createdAt)
+    forUser(userId) {
+      let latest = null;
+      for (const [access_token, info] of tokens.entries()) {
+        if (info.userId === userId) {
+          if (!latest || info.createdAt > latest.createdAt) {
+            latest = { access_token, createdAt: info.createdAt };
+          }
+        }
+      }
+      return latest;
+    }
+  };
 
   // 1) Health check
   app.get("/ifttt/v1/status", (req, res) => {
@@ -207,26 +258,26 @@ app.post("/api/kill", (req, res) => {
 
   // === NEW: Action endpoint required by your Service ===
   app.post("/ifttt/v1/actions/run_effect", (req, res) => {
-  // ---- Auth check (required by Endpoint Tests) ----
-  const auth  = req.headers.authorization ?? "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-  const t = token && tokens.get(token);
-  if (!t) {
-    return res.status(401).json({ errors: [{ message: "invalid_token" }] });
-  }
+    // ---- Auth check (required by Endpoint Tests) ----
+    const auth  = req.headers.authorization ?? "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+    const t = token && tokens.get(token);
+    if (!t) {
+      return res.status(401).json({ errors: [{ message: "invalid_token" }] });
+    }
 
-  // ---- Validate payload ----
-  const effect = req.body?.actionFields?.effect ?? req.body?.effect;
-  const allowed = new Set(["blackout", "flash_red", "plug_on", "reset"]);
-  if (!allowed.has(effect)) {
-    return res.status(400).json({
-      errors: [{ message: "Invalid 'effect'. Use blackout, flash_red, plug_on, reset." }]
-    });
-  }
+    // ---- Validate payload ----
+    const effect = req.body?.actionFields?.effect ?? req.body?.effect;
+    const allowed = new Set(["blackout", "flash_red", "plug_on", "reset"]);
+    if (!allowed.has(effect)) {
+      return res.status(400).json({
+        errors: [{ message: "Invalid 'effect'. Use blackout, flash_red, plug_on, reset." }]
+      });
+    }
 
-  // ---- Success ----
-  return res.status(200).json({ data: [{ id: `run-${Date.now()}` }] });
-});
+    // ---- Success ----
+    return res.status(200).json({ data: [{ id: `run-${Date.now()}` }] });
+  });
 
   // === NEW: Trigger endpoint the tests are checking ===
   app.post("/ifttt/v1/triggers/effect_requested", (req, res) => {
