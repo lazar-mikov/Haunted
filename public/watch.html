@@ -8,6 +8,8 @@
     body { font-family: system-ui, sans-serif; margin: 2rem; }
     button { font-size: 1rem; padding: 0.6rem 1rem; margin-right: 1rem; }
     #log { margin-top: 1rem; white-space: pre-wrap; }
+    .ok { color: #0a7a0a; }
+    .err { color: #a00; }
   </style>
 </head>
 <body>
@@ -22,31 +24,45 @@
   <div id="log"></div>
 
   <script>
-    const log = (...args) => {
-      const el = document.getElementById('log');
-      el.textContent = [el.textContent, args.join(' ')].filter(Boolean).join('\n');
+    const logEl = document.getElementById('log');
+    const log = (msg, cls = '') => {
+      const line = document.createElement('div');
+      if (cls) line.className = cls;
+      line.textContent = msg;
+      logEl.appendChild(line);
     };
 
-    document.getElementById('btnBlackout').addEventListener('click', async () => {
-      log('Calling /api/trigger with { event: "blackout" } ...');
+    async function trigger(effect) {
+      log(`Calling /api/trigger with { effect: "${effect}" } ...`);
       try {
         const r = await fetch('/api/trigger', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ event: 'blackout' })
+          credentials: 'include',              // IMPORTANT: send session cookie
+          body: JSON.stringify({ effect })     // IMPORTANT: use "effect", not "event"
         });
-        const data = await r.json();
-        log('Response:', JSON.stringify(data, null, 2));
-      } catch (e) {
-        log('Error:', e.message);
-      }
-    });
+        const data = await r.json().catch(() => ({}));
 
-    // Optional: show a message after returning from Connect
+        if (r.ok && data && data.ok) {
+          log(`OK via: ${data.via || 'unknown'}`, 'ok');
+        } else {
+          log(`Error ${r.status}: ${JSON.stringify(data)}`, 'err');
+        }
+      } catch (e) {
+        log(`Fetch error: ${e.message}`, 'err');
+      }
+    }
+
+    document.getElementById('btnBlackout').addEventListener('click', () => trigger('blackout'));
+
+    // Optional: auto-trigger after returning from /connect?autoplay=1
     (function maybeAutoplay() {
       const p = new URLSearchParams(location.search);
       if (p.get('autoplay') === '1') {
-        log('Returned from Connect. You can now press "Test Blackout".');
+        log('Returned from Connect. Auto-triggering blackout...');
+        trigger('blackout');
+      } else {
+        log('Tip: Click "Allow & Play (Connect)" first to authorize, then "Test Blackout".');
       }
     })();
   </script>

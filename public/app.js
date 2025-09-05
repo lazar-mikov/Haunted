@@ -1,5 +1,3 @@
-// Simple page state from query
-
 // public/app.js — runs in the browser
 
 // ——— basic UI hooks ———
@@ -18,7 +16,6 @@ if (shouldAutoplay && film) {
 }
 
 // ——— map YOUR labels -> IFTTT Action enum values ———
-// Your service Action supports: blackout | flash_red | plug_on | reset
 const EFFECT_MAP = {
   lights_flicker: "blackout",
   lights_red:     "flash_red",
@@ -28,7 +25,6 @@ const EFFECT_MAP = {
 };
 
 // ——— define cue times ———
-// Option A: use your earlier seconds-based schedule:
 const schedule = [
   { t: 5,  event: "lights_flicker" },
   { t: 12, event: "plug_fan_on"    },
@@ -37,15 +33,6 @@ const schedule = [
   { t: 35, event: "plug_fan_off"   }
 ];
 
-// If you prefer the other list, replace the above with:
-// const schedule = [
-//   { t: 15, effect: "blackout"  },
-//   { t: 22.5, effect: "flash_red" },
-//   { t: 36, effect: "plug_on"   },
-//   { t: 45, effect: "reset"     }
-// ];
-
-
 // ——— convert to ms + normalize to the enum effects ———
 const cues = schedule.map(c => {
   const effect = c.effect || EFFECT_MAP[c.event];
@@ -53,25 +40,29 @@ const cues = schedule.map(c => {
 }).filter(Boolean);
 
 // ——— fire a cue slightly EARLY to account for cloud/Alexa latency ———
-const EARLY_MS = 1200; // start here; tweak during dress rehearsal
+const EARLY_MS = 1200;
 
 async function fireEffect(effect, extraPayload) {
   try {
     const r = await fetch("/api/trigger", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ event: effect, payload: extraPayload || {} })
+      credentials: "include",                // ✅ keep session cookie
+      body: JSON.stringify({ effect, payload: extraPayload || {} }) // ✅ send "effect"
     });
     const j = await r.json();
     if (!j.ok) throw new Error(j.error || "Trigger failed");
     if (statusBox) statusBox.textContent = `effect: ${effect} → ${j.via}`;
-    console.log("Triggered:", effect, j.via);
+    console.log("Triggered:", effect, j.via, j);
   } catch (e) {
     if (statusBox) statusBox.textContent = `effect: ${effect} → ERROR`;
     console.error(e);
     alert("Trigger failed: " + e.message);
   }
 }
+
+// Expose a manual tester in console
+window.fx = (name) => fireEffect(name, { origin: "manual" });
 
 // ——— high-precision scheduler using requestAnimationFrame ———
 if (film) {
@@ -100,7 +91,6 @@ if (film) {
 
   film.addEventListener("seeking", () => {
     const nowMs = film.currentTime * 1000;
-    // Allow re-firing for cues still in the future after seek
     for (const c of cues) c.fired = nowMs >= (c.t - EARLY_MS);
   });
 
