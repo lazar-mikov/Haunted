@@ -10,7 +10,10 @@ dotenv.config();
 
 const app = express();
 
+/** [ADDED] parse urlencoded too (IFTTT & some tools send form bodies) */
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // <— ADDED
+
 app.use(cookieSession({
   name: "sess",
   secret: process.env.SESSION_SECRET || "haunted",
@@ -141,7 +144,7 @@ app.post("/api/demo/maker-key", (req, res) => {
   });
 });
 
-/** ---------- [FIXED] Trigger endpoint (works with express.json or raw) ---------- */
+/** ---------- [CHANGED] Trigger endpoint: accept 'effect' OR 'event' ---------- */
 app.post("/api/trigger", async (req, res) => {
   // If express.json already parsed the body
   if (req.body && typeof req.body === "object" && Object.keys(req.body).length) {
@@ -164,19 +167,20 @@ app.post("/api/trigger", async (req, res) => {
 
 async function handleTrigger(req, res, body) {
   try {
-    const { event, payload } = body;
-    if (!event) return res.status(400).json({ ok: false, error: "missing event" });
+    /** [CHANGED] allow 'effect' or 'event' */
+    const effect = (body.effect || body.event || "").trim();
+    if (!effect) return res.status(400).json({ ok: false, error: "missing effect" });
 
     // OPTION A: IFTTT Connect (preferred)
     if (process.env.IFTTT_CONNECT_ACTION_URL && req.session.ifttt?.access_token) {
       const allowed = new Set(["blackout", "flash_red", "plug_on", "reset"]);
-      if (!allowed.has(event)) {
-        return res.status(400).json({ ok: false, error: "invalid event" });
+      if (!allowed.has(effect)) {
+        return res.status(400).json({ ok: false, error: "invalid effect" });
       }
       try {
         await axios.post(
           process.env.IFTTT_CONNECT_ACTION_URL,      // https://connect.ifttt.com/v2/actions/run_effect
-          { actionFields: { effect: event } },       // IMPORTANT: actionFields.effect
+          { actionFields: { effect } },              // IMPORTANT: actionFields.effect
           {
             headers: {
               Authorization: `Bearer ${req.session.ifttt.access_token}`,
@@ -196,8 +200,8 @@ async function handleTrigger(req, res, body) {
     if (!req.session.makerKey) {
       return res.status(400).json({ ok: false, error: "No Maker key (demo mode). Paste it on Page 1." });
     }
-    const url = `https://maker.ifttt.com/trigger/${encodeURIComponent(event)}/json/with/key/${req.session.makerKey}`;
-    await axios.post(url, payload || {}, { timeout: 4000 });
+    const url = `https://maker.ifttt.com/trigger/${encodeURIComponent(effect)}/json/with/key/${req.session.makerKey}`;
+    await axios.post(url, body.payload || {}, { timeout: 4000 });
     return res.json({ ok: true, via: "webhooks" });
   } catch (e) {
     console.error("Trigger error:", e?.response?.data || e.message);
@@ -296,12 +300,19 @@ app.post("/api/kill", (req, res) => {
 
   // === Action endpoint required by your Service ===
   app.post("/ifttt/v1/actions/run_effect", (req, res) => {
-    // ---- Auth check (required by Endpoint Tests) ----
+    /** [CHANGED] Auth: accept Bearer (normal) OR Service-Key (for local testing) */
     const auth  = req.headers.authorization ?? "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
     const t = token && tokens.get(token);
-    if (!t) {
-      return res.status(401).json({ errors: [{ message: "invalid_token" }] });
+
+    const svcKey =
+      req.get("IFTTT-Service-Key") ||
+      req.get("IFTTT-Channel-Key") ||
+      req.get("ifttt-service-key") ||
+      req.get("ifttt-channel-key");
+
+    if (!t && (!svcKey || svcKey !== process.env.IFTTT_SERVICE_KEY)) {
+      return res.status(401).json({ errors: [{ message: "invalid_token_or_service_key" }] });
     }
 
     // ---- Validate payload ----
@@ -313,7 +324,7 @@ app.post("/api/kill", (req, res) => {
       });
     }
 
-    // ---- Success ----
+    // ---- Success: MUST match IFTTT action response schema ----
     return res.status(200).json({ data: [{ id: `run-${Date.now()}` }] });
   });
 
