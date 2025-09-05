@@ -2,18 +2,58 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Haunted Screening</title>
+    <title>Haunted Demo — Button Test</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
-      body { font-family: system-ui, -apple-system, Segoe UI, Roboto; display:flex; align-items:center; justify-content:center; min-height:100dvh; }
-      button { font-size:1.1rem; padding:0.9rem 1.2rem; border-radius:10px; border:none; cursor:pointer; }
+      body {
+        font-family: system-ui, sans-serif;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        min-height: 100vh; background: #000; color: #fff;
+      }
+      button {
+        font-size: 1.2rem;
+        padding: 1rem 1.4rem;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        background: #c00; color: #fff;
+      }
+      button:hover { background: #e33; }
+      #log { margin-top: 1.5rem; font-family: monospace; white-space: pre-wrap; }
     </style>
   </head>
   <body>
-    <button id="go">Allow & Play ▶️</button>
+    <h1>Haunted Demo</h1>
+    <!-- Authorize with IFTTT -->
+    <button id="btnConnect">Allow & Connect</button>
+    <!-- Trigger an effect -->
+    <button id="btnBlackout">Test Blackout</button>
+    <div id="log"></div>
+
     <script>
-      document.getElementById('go').addEventListener('click', () => {
-        window.location.href = '/connect';
+      const logEl = document.getElementById('log');
+      const log = (msg) => { logEl.textContent += (logEl.textContent ? '\n' : '') + msg; };
+
+      document.getElementById('btnConnect').addEventListener('click', () => {
+        // redirect through /connect to authorize IFTTT
+        location.href = '/connect?state=/';
+      });
+
+      document.getElementById('btnBlackout').addEventListener('click', async () => {
+        log('Sending blackout effect…');
+        try {
+          const r = await fetch('/api/trigger', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include', // send session cookie
+            body: JSON.stringify({ effect: 'blackout' })
+          });
+          const data = await r.json();
+          log('Response: ' + JSON.stringify(data));
+        } catch (e) {
+          log('Error: ' + e.message);
+        }
       });
     </script>
   </body>
