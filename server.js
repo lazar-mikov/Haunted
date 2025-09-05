@@ -10,6 +10,10 @@ dotenv.config();
 
 const app = express();
 
+// [FIX] Define tokens Map at the top level so it's accessible everywhere
+let tokens = new Map();
+let authCodes = new Map();
+
 /** [ADDED] parse urlencoded too (IFTTT & some tools send form bodies) */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // <— ADDED
@@ -79,6 +83,14 @@ app.get("/auth/ifttt/callback", async (req, res) => {
       refresh_token: tokenResp.data.refresh_token,
       expires_in: tokenResp.data.expires_in
     };
+
+    // [FIXED] ALSO store token in the tokens Map for IFTTT endpoints validation
+    tokens.set(tokenResp.data.access_token, { 
+      userId: "demo-user-001", 
+      createdAt: Date.now() 
+    });
+    console.log("Token stored in both session and tokens Map");
+
     res.redirect("/?authed=1");
   } catch (e) {
     console.error("OAuth error:", e?.response?.data || e.message);
@@ -126,6 +138,15 @@ app.get("/dev/prime-session", (req, res) => {
     console.error(e);
     res.status(500).type("text").send("prime-session error");
   }
+});
+
+/** ---------- [ADDED] Debug endpoint to check token status ---------- */
+app.get("/api/debug/token", (req, res) => {
+  res.json({
+    hasSessionToken: !!req.session?.ifttt?.access_token,
+    sessionToken: req.session?.ifttt?.access_token ? "***" : null,
+    tokensMapSize: tokens.size
+  });
 });
 
 /** ---------- Demo helpers (IFTTT Webhooks) ---------- */
@@ -220,10 +241,6 @@ app.post("/api/kill", (req, res) => {
   if (!app || !app.locals) return;                 // requires your existing `app`
   if (app.locals.__iftttWired) return;             // prevent double-registration
   app.locals.__iftttWired = true;
-
-  // In-memory stores (fine for demo; replace with Redis/DB later)
-  const authCodes = new Map();   // code -> { userId, createdAt }
-  const tokens    = new Map();   // accessToken -> { userId, createdAt }
 
   /** ---------- [ADDED] expose token store for dev routes ---------- */
   app.locals.iftttTokens = {
@@ -381,17 +398,19 @@ app.post("/api/kill", (req, res) => {
     if (limit < 0) limit = 0;
     if (limit > 50) limit = 50;
 
+    const baseCreated = Date.now();
     const makeItem = (i) => {
-      const ts = now - i * 60;
-      return {
+      const ts = new Date(baseCreated - i * 60_000);
+      const item = {
         title: `Test thing #${i + 1}`,
         message: "Hello from Haunted",
-        created_at: new Date(ts * 1000).toISOString(),
+        created_at: ts.toISOString(),
         meta: {
-          id: `demo-${ts}`,
-          timestamp: ts
+          id: `demo-${ts.getTime()}`,
+          timestamp: Math.floor(ts.getTime() / 1000)
         }
       };
+      return item;
     };
 
     const data = Array.from({ length: limit }, (_, i) => makeItem(i));
