@@ -150,19 +150,16 @@ app.get("/api/debug/token", (req, res) => {
 });
 
 /** ---------- Demo helpers (IFTTT Webhooks) ---------- */
+/** ---------- Demo helpers (IFTTT Webhooks) ---------- */
 app.post("/api/demo/maker-key", (req, res) => {
-  const chunks = [];
-  req.on("data", c => chunks.push(c));
-  req.on("end", () => {
-    try {
-      const { makerKey } = JSON.parse(Buffer.concat(chunks).toString());
-      if (!makerKey) return res.status(400).json({ ok: false, error: "makerKey required" });
-      req.session.makerKey = makerKey.trim();
-      res.json({ ok: true });
-    } catch {
-      res.status(400).json({ ok: false, error: "bad json" });
-    }
-  });
+  try {
+    const { makerKey } = req.body;
+    if (!makerKey) return res.status(400).json({ ok: false, error: "makerKey required" });
+    req.session.makerKey = makerKey.trim();
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(400).json({ ok: false, error: "bad json" });
+  }
 });
 
 /** ---------- [CHANGED] Trigger endpoint: accept 'effect' OR 'event' ---------- */
