@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Haunted Demo — Button Test</title>
+    <title>Haunted Demo — Video Experience</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
       body {
@@ -10,43 +10,94 @@
         display: flex; flex-direction: column;
         align-items: center; justify-content: center;
         min-height: 100vh; background: #000; color: #fff;
+        padding: 20px;
       }
       button {
         font-size: 1.2rem;
         padding: 1rem 1.4rem;
+        margin: 10px;
         border-radius: 8px;
         border: none;
         cursor: pointer;
         background: #c00; color: #fff;
       }
       button:hover { background: #e33; }
-      #log { margin-top: 1.5rem; font-family: monospace; white-space: pre-wrap; }
+      #log { 
+        margin-top: 1.5rem; 
+        font-family: monospace; 
+        white-space: pre-wrap;
+        background: #222;
+        padding: 10px;
+        border-radius: 5px;
+        max-width: 500px;
+      }
+      video {
+        width: 100%;
+        max-width: 800px;
+        margin: 20px 0;
+        border: 2px solid #333;
+        border-radius: 8px;
+      }
+      .controls {
+        display: flex;
+        gap: 10px;
+        margin: 10px 0;
+      }
+      .cue-points {
+        margin: 15px 0;
+        color: #aaa;
+        font-size: 0.9rem;
+        text-align: center;
+      }
     </style>
   </head>
   <body>
-    <h1>Haunted Demo</h1>
-    <!-- Authorize with IFTTT -->
-    <button id="btnConnect">Allow & Connect</button>
-    <!-- Trigger an effect -->
-    <button id="btnBlackout">Test Blackout</button>
+    <h1>Haunted House Experience</h1>
+    
+    <!-- Video Element -->
+    <video id="film" controls>
+      <source src="video/timer.mp4" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+
+    <!-- Video Controls -->
+    <div class="controls">
+      <button id="unmute">Unmute</button>
+      <button id="restart">Restart</button>
+    </div>
+
+    <!-- Cue Points Info -->
+    <div class="cue-points">
+      <h3>Spooky Effects at:</h3>
+      <p>5s: Blackout Effect ⚡</p>
+      <p>12s: Blackout Effect ⚡</p>
+    </div>
+
+    <!-- Connection & Test Buttons -->
+    <button id="btnConnect">Connect Smart Home</button>
+    <button id="btnBlackout">Test Blackout Effect</button>
+
+    <!-- Status Log -->
     <div id="log"></div>
+
+    <!-- Include your app.js -->
+    <script src="/app.js"></script>
 
     <script>
       const logEl = document.getElementById('log');
       const log = (msg) => { logEl.textContent += (logEl.textContent ? '\n' : '') + msg; };
 
       document.getElementById('btnConnect').addEventListener('click', () => {
-        // redirect through /connect to authorize IFTTT
         location.href = '/connect?state=/';
       });
 
       document.getElementById('btnBlackout').addEventListener('click', async () => {
-        log('Sending blackout effect…');
+        log('Testing blackout effect…');
         try {
           const r = await fetch('/api/trigger', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: 'include', // send session cookie
+            credentials: 'include',
             body: JSON.stringify({ effect: 'blackout' })
           });
           const data = await r.json();
@@ -55,6 +106,18 @@
           log('Error: ' + e.message);
         }
       });
+
+      // Add video event listeners for debugging
+      const film = document.getElementById('film');
+      if (film) {
+        film.addEventListener('timeupdate', () => {
+          document.title = `Haunted Demo - ${Math.floor(film.currentTime)}s`;
+        });
+
+        film.addEventListener('play', () => {
+          log('Video started playing at ' + film.currentTime + 's');
+        });
+      }
     </script>
   </body>
 </html>
