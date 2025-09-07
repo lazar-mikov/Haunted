@@ -187,12 +187,15 @@ app.post("/api/trigger", async (req, res) => {
 });
 
 async function handleTrigger(req, res, body) {
+  // TEMPORARY: Force webhooks until IFTTT service is live
+  req.session.ifttt = null;
+  
   try {
     /** [CHANGED] allow 'effect' or 'event' */
     const effect = (body.effect || body.event || "").trim();
     if (!effect) return res.status(400).json({ ok: false, error: "missing effect" });
 
-    // OPTION A: IFTTT Connect (preferred)
+    // OPTION A: IFTTT Connect (preferred) - WILL BE SKIPPED FOR NOW
     if (process.env.IFTTT_CONNECT_ACTION_URL && req.session.ifttt?.access_token) {
       const allowed = new Set(["blackout", "flash_red", "plug_on", "reset"]);
       if (!allowed.has(effect)) {
@@ -200,8 +203,8 @@ async function handleTrigger(req, res, body) {
       }
       try {
         await axios.post(
-          process.env.IFTTT_CONNECT_ACTION_URL,      // https://connect.ifttt.com/v2/actions/run_effect
-          { actionFields: { effect } },              // IMPORTANT: actionFields.effect
+          process.env.IFTTT_CONNECT_ACTION_URL,
+          { actionFields: { effect } },
           {
             headers: {
               Authorization: `Bearer ${req.session.ifttt.access_token}`,
@@ -217,7 +220,7 @@ async function handleTrigger(req, res, body) {
       }
     }
 
-    // OPTION B: Webhooks fallback (demo)
+    // OPTION B: Webhooks fallback (demo) - THIS WILL RUN NOW
     if (!req.session.makerKey) {
       return res.status(400).json({ ok: false, error: "No Maker key (demo mode). Paste it on Page 1." });
     }
