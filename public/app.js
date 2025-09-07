@@ -1,5 +1,3 @@
-// public/app.js — runs in the browser
-
 // ——— basic UI hooks ———
 const film = document.getElementById("film");
 const statusBox = document.getElementById("status");
@@ -15,29 +13,16 @@ if (shouldAutoplay && film) {
   });
 }
 
-// ——— map YOUR labels -> IFTTT Action enum values ———
-const EFFECT_MAP = {
-  lights_flicker: "blackout",
-  lights_red:     "flash_red",
-  plug_fan_on:    "plug_on",
-  plug_fan_off:   "reset",
-  whisper_sound:  "flash_red" // or delete this line if you don't want a cue here
-};
-
 // ——— define cue times ———
 const schedule = [
-  { t: 5,  event: "lights_flicker" },
-  { t: 12, event: "plug_fan_on"    },
-  { t: 22, event: "lights_red"     },
-  { t: 27, event: "whisper_sound"  },
-  { t: 35, event: "plug_fan_off"   }
+  { t: 5,  event: "blackout" },  // 5 seconds: Blackout
+  { t: 12, event: "blackout" }   // 12 seconds: Blackout
 ];
 
 // ——— convert to ms + normalize to the enum effects ———
 const cues = schedule.map(c => {
-  const effect = c.effect || EFFECT_MAP[c.event];
-  return effect ? { t: c.t * 1000, effect, fired: false, src: c.event || effect } : null;
-}).filter(Boolean);
+  return { t: c.t * 1000, effect: c.event, fired: false, src: "video_cue" };
+});
 
 // ——— fire a cue slightly EARLY to account for cloud/Alexa latency ———
 const EARLY_MS = 1200;
@@ -47,8 +32,8 @@ async function fireEffect(effect, extraPayload) {
     const r = await fetch("/api/trigger", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",                // ✅ keep session cookie
-      body: JSON.stringify({ effect, payload: extraPayload || {} }) // ✅ send "effect"
+      credentials: "include",
+      body: JSON.stringify({ effect, payload: extraPayload || {} })
     });
     const j = await r.json();
     if (!j.ok) throw new Error(j.error || "Trigger failed");
@@ -73,7 +58,13 @@ if (film) {
     for (const c of cues) {
       if (!c.fired && nowMs >= (c.t - EARLY_MS)) {
         c.fired = true;
-        fireEffect(c.effect, { origin: "video", at_ms: Math.round(nowMs), src: c.src });
+        fireEffect(c.effect, { 
+          origin: "video", 
+          at_ms: Math.round(nowMs), 
+          cue_time: c.t / 1000,
+          src: c.src 
+        });
+        console.log(`🎬 Triggered ${c.effect} at ${c.t/1000}s (video time: ${nowMs/1000}s)`);
       }
     }
     rafId = requestAnimationFrame(tick);
@@ -82,6 +73,7 @@ if (film) {
   film.addEventListener("play", () => {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(tick);
+    console.log("Video started - cue system active");
   });
 
   film.addEventListener("pause", () => {
@@ -91,12 +83,16 @@ if (film) {
 
   film.addEventListener("seeking", () => {
     const nowMs = film.currentTime * 1000;
-    for (const c of cues) c.fired = nowMs >= (c.t - EARLY_MS);
+    for (const c of cues) {
+      c.fired = nowMs >= (c.t - EARLY_MS);
+    }
   });
 
   film.addEventListener("ended", () => {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
+    // Reset cues for replay
+    for (const c of cues) c.fired = false;
   });
 }
 
