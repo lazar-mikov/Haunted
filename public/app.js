@@ -16,6 +16,7 @@ if (shouldAutoplay && film) {
 // ——— define cue times ———
 const schedule = [
   { t: 5,  event: "blackout" },  // 5 seconds: Blackout
+   { t: 8,  event: "flash_red" },
   { t: 12, event: "blackout" }   // 12 seconds: Blackout
 ];
 
