@@ -16,7 +16,7 @@ if (shouldAutoplay && film) {
 // ——— define cue times ———
 const schedule = [
   { t: 5,  event: "blackout" },  // 5 seconds: Blackout
-   { t: 8,  event: "flash_red" },
+  { t: 8,  event: "flash_red" }, // 8 seconds: Red Flash
   { t: 12, event: "blackout" }   // 12 seconds: Blackout
 ];
 
@@ -30,6 +30,27 @@ const EARLY_MS = 1200;
 
 async function fireEffect(effect, extraPayload) {
   try {
+    // Try Alexa first if user has connected Alexa
+    if (window.hasAlexaConnected) {
+      try {
+        const alexaResponse = await fetch("/api/alexa/trigger", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ effect, ...extraPayload })
+        });
+        const alexaData = await alexaResponse.json();
+        if (alexaData.success) {
+          if (statusBox) statusBox.textContent = `effect: ${effect} → ALEXA`;
+          console.log("Triggered via Alexa:", effect, alexaData);
+          return; // Success with Alexa, skip IFTTT
+        }
+      } catch (alexaError) {
+        console.log("Alexa trigger failed, falling back to IFTTT:", alexaError);
+      }
+    }
+    
+    // Fallback to IFTTT
     const r = await fetch("/api/trigger", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -44,6 +65,24 @@ async function fireEffect(effect, extraPayload) {
     if (statusBox) statusBox.textContent = `effect: ${effect} → ERROR`;
     console.error(e);
     alert("Trigger failed: " + e.message);
+  }
+}
+
+// Check if user has Alexa connected
+async function checkAlexaConnection() {
+  try {
+    const response = await fetch("/api/alexa/status", {
+      credentials: "include"
+    });
+    const data = await response.json();
+    window.hasAlexaConnected = data.connected;
+    if (data.connected) {
+      console.log("Alexa connection detected - will use Alexa for effects");
+      if (statusBox) statusBox.textContent += " | ALEXA READY";
+    }
+  } catch (error) {
+    console.log("No Alexa connection detected, using IFTTT fallback");
+    window.hasAlexaConnected = false;
   }
 }
 
@@ -108,3 +147,45 @@ if (restartBtn && film) {
     film.play().catch(()=>{});
   };
 }
+
+// ——— Alexa connection status ———
+// Check Alexa connection when page loads
+document.addEventListener('DOMContentLoaded', () => {
+  checkAlexaConnection();
+  
+  // Add Alexa status indicator to UI
+  if (statusBox) {
+    const alexaStatus = document.createElement('span');
+    alexaStatus.id = 'alexa-status';
+    alexaStatus.style.marginLeft = '10px';
+    alexaStatus.style.color = '#888';
+    alexaStatus.textContent = 'Checking Alexa...';
+    statusBox.parentNode.appendChild(alexaStatus);
+    
+    // Update status periodically
+    setInterval(async () => {
+      await checkAlexaConnection();
+      alexaStatus.textContent = window.hasAlexaConnected ? 'ALEXA CONNECTED' : 'ALEXA NOT CONNECTED';
+      alexaStatus.style.color = window.hasAlexaConnected ? '#4CAF50' : '#888';
+    }, 5000);
+  }
+});
+
+// ——— Alexa test function ———
+window.testAlexa = async (effect = "blackout") => {
+  try {
+    const response = await fetch("/api/alexa/trigger", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ effect, origin: "manual_test" })
+    });
+    const data = await response.json();
+    console.log("Alexa test result:", data);
+    alert(`Alexa test: ${data.success ? 'SUCCESS' : 'FAILED'}\n${data.message || ''}`);
+    return data;
+  } catch (error) {
+    console.error("Alexa test error:", error);
+    alert("Alexa test failed: " + error.message);
+  }
+};
