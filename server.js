@@ -80,6 +80,76 @@ app.get('/alexa/smarthome', (req, res) => {
   });
 });
 
+// Check Alexa connection status
+app.get('/api/alexa/status', (req, res) => {
+  // Check if user has Alexa tokens stored
+  const hasAlexaToken = alexaUserTokens.size > 0; // Simple check
+  res.json({ connected: hasAlexaToken });
+});
+
+// Alexa trigger endpoint
+app.post('/api/alexa/trigger', async (req, res) => {
+  const { effect, origin } = req.body;
+  
+  try {
+    const endpointMap = {
+      'blackout': 'haunted-blackout',
+      'flash_red': 'haunted-flash-red', 
+      'plug_on': 'haunted-plug-on',
+      'reset': 'haunted-reset'
+    };
+    
+    const endpointId = endpointMap[effect];
+    if (!endpointId) {
+      return res.json({ success: false, message: 'Invalid effect' });
+    }
+    
+    // Get first available access token (for demo purposes)
+    let accessToken = null;
+    for (const [token, info] of alexaUserTokens.entries()) {
+      accessToken = token;
+      break;
+    }
+    
+    if (!accessToken) {
+      return res.json({ success: false, message: 'No Alexa connection found' });
+    }
+    
+    // Call Alexa Smart Home API
+    const alexaResponse = await fetch('https://api.eu.amazonalexa.com/v3/events', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        event: {
+          header: {
+            namespace: "Alexa.SceneController",
+            name: "Activate",
+            messageId: Math.random().toString(36).substring(2) + Date.now().toString(36),
+            payloadVersion: "3"
+          },
+          endpoint: {
+            endpointId: endpointId
+          },
+          payload: {}
+        }
+      })
+    });
+    
+    if (!alexaResponse.ok) {
+      throw new Error(`Alexa API error: ${alexaResponse.status}`);
+    }
+    
+    res.json({ success: true, message: `Triggered ${effect} via Alexa` });
+    
+  } catch (error) {
+    console.error('Alexa trigger error:', error);
+    res.json({ success: false, message: error.message });
+  }
+});
+
 // Alexa discovery handler
 function handleAlexaDiscovery(directive, res) {
   if (directive.header.name === 'Discover') {
