@@ -44,6 +44,8 @@ app.post('/alexa/smarthome', async (req, res) => {
   }
   
   const accessToken = authHeader.substring(7);
+
+  
   
   // Validate the token with Amazon
   try {
@@ -67,6 +69,15 @@ app.post('/alexa/smarthome', async (req, res) => {
     console.error('Alexa token validation failed:', error);
     return res.status(401).json({ error: 'Token validation failed' });
   }
+});
+
+// [ADD THIS] GET endpoint for testing - responds with simple message
+app.get('/alexa/smarthome', (req, res) => {
+  res.json({ 
+    message: "Alexa Smart Home endpoint is working!",
+    note: "This endpoint expects POST requests from Alexa",
+    status: "online"
+  });
 });
 
 // Alexa discovery handler
