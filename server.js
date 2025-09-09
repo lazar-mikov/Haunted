@@ -28,6 +28,257 @@ app.use(cookieSession({
 // Serve static frontend
 app.use(express.static("public"));
 
+// ===================== ALEXA SMART HOME LOGIC =====================
+// Store Alexa access tokens
+const alexaUserTokens = new Map();
+
+// Alexa Smart Home endpoint
+app.post('/alexa/smarthome', async (req, res) => {
+  console.log('Alexa Smart Home request:', JSON.stringify(req.body, null, 2));
+  
+  const { directive } = req.body;
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing access token' });
+  }
+  
+  const accessToken = authHeader.substring(7);
+  
+  // Validate the token with Amazon
+  try {
+    const tokenInfo = await validateAlexaAccessToken(accessToken);
+    
+    if (!tokenInfo || tokenInfo.aud !== process.env.LWA_CLIENT_ID) {
+      return res.status(401).json({ error: 'Invalid access token' });
+    }
+    
+    // Handle different directive types
+    switch (directive.header.namespace) {
+      case 'Alexa.Discovery':
+        return handleAlexaDiscovery(directive, res);
+      case 'Alexa.PowerController':
+        return handleAlexaPowerControl(directive, res);
+      default:
+        return res.status(400).json({ error: 'UNSUPPORTED_OPERATION' });
+    }
+    
+  } catch (error) {
+    console.error('Alexa token validation failed:', error);
+    return res.status(401).json({ error: 'Token validation failed' });
+  }
+});
+
+// Alexa discovery handler
+function handleAlexaDiscovery(directive, res) {
+  if (directive.header.name === 'Discover') {
+    const endpoints = [
+      {
+        endpointId: "haunted-blackout",
+        manufacturerName: "Haunted House",
+        friendlyName: "Blackout Effect",
+        description: "Complete darkness effect",
+        displayCategories: ["SWITCH"],
+        capabilities: [
+          {
+            type: "AlexaInterface",
+            interface: "Alexa.PowerController",
+            version: "3",
+            properties: {
+              supported: [{ name: "powerState" }],
+              proactivelyReported: true,
+              retrievable: true
+            }
+          }
+        ]
+      },
+      {
+        endpointId: "haunted-flash-red",
+        manufacturerName: "Haunted House", 
+        friendlyName: "Red Flash Effect",
+        description: "Sudden red flash effect",
+        displayCategories: ["SWITCH"],
+        capabilities: [
+          {
+            type: "AlexaInterface",
+            interface: "Alexa.PowerController", 
+            version: "3",
+            properties: {
+              supported: [{ name: "powerState" }],
+              proactivelyReported: true,
+              retrievable: true
+            }
+          }
+        ]
+      },
+      {
+        endpointId: "haunted-plug-on",
+        manufacturerName: "Haunted House", 
+        friendlyName: "Plug On Effect",
+        description: "Trigger plug on effect",
+        displayCategories: ["SWITCH"],
+        capabilities: [
+          {
+            type: "AlexaInterface",
+            interface: "Alexa.PowerController", 
+            version: "3",
+            properties: {
+              supported: [{ name: "powerState" }],
+              proactivelyReported: true,
+              retrievable: true
+            }
+          }
+        ]
+      },
+      {
+        endpointId: "haunted-reset",
+        manufacturerName: "Haunted House", 
+        friendlyName: "Reset Effect",
+        description: "Reset all effects",
+        displayCategories: ["SWITCH"],
+        capabilities: [
+          {
+            type: "AlexaInterface",
+            interface: "Alexa.PowerController", 
+            version: "3",
+            properties: {
+              supported: [{ name: "powerState" }],
+              proactivelyReported: true,
+              retrievable: true
+            }
+          }
+        ]
+      }
+    ];
+    
+    res.json({
+      event: {
+        header: {
+          namespace: "Alexa.Discovery",
+          name: "Discover.Response",
+          messageId: directive.header.messageId,
+          payloadVersion: "3"
+        },
+        payload: { endpoints }
+      }
+    });
+  }
+}
+
+// Alexa power control handler
+function handleAlexaPowerControl(directive, res) {
+  const { endpointId, name } = directive.header;
+  const effect = endpointId.replace('haunted-', '');
+  
+  // Trigger your existing effect system
+  if (name === 'TurnOn') {
+    // Call your existing API endpoint
+    axios.post(`http://localhost:${process.env.PORT || 3000}/api/trigger`, {
+      effect: effect
+    }, {
+      timeout: 3000
+    }).catch(error => {
+      console.log('Effect triggered via Alexa, but internal call failed:', error.message);
+    });
+  }
+  
+  // Response to Alexa
+  res.json({
+    event: {
+      header: {
+        namespace: "Alexa",
+        name: "Response",
+        messageId: directive.header.messageId,
+        payloadVersion: "3",
+        correlationToken: directive.header.correlationToken
+      },
+      endpoint: directive.endpoint,
+      payload: {}
+    },
+    context: {
+      properties: [{
+        namespace: "Alexa.PowerController",
+        name: "powerState",
+        value: name === 'TurnOn' ? "ON" : "OFF",
+        timeOfSample: new Date().toISOString(),
+        uncertaintyInMilliseconds: 500
+      }]
+    }
+  });
+}
+
+// Validate Alexa access token with Amazon
+async function validateAlexaAccessToken(token) {
+  try {
+    const response = await fetch(`https://api.amazon.com/auth/o2/tokeninfo?access_token=${token}`);
+    return response.json();
+  } catch (error) {
+    console.error('Token validation error:', error);
+    return null;
+  }
+}
+
+// Alexa OAuth endpoints
+app.get('/auth/alexa', (req, res) => {
+  const { client_id, redirect_uri, state } = req.query;
+  
+  // Store the state for verification later
+  req.session.authState = state;
+  req.session.authRedirectUri = redirect_uri;
+  
+  // Redirect to Amazon's OAuth endpoint
+  const amazonAuthUrl = new URL('https://www.amazon.com/ap/oa');
+  amazonAuthUrl.searchParams.set('client_id', process.env.LWA_CLIENT_ID);
+  amazonAuthUrl.searchParams.set('scope', 'profile');
+  amazonAuthUrl.searchParams.set('response_type', 'code');
+  amazonAuthUrl.searchParams.set('redirect_uri', `${process.env.RAILWAY_URL || 'https://haunted-production.up.railway.app'}/auth/alexa/callback`);
+  amazonAuthUrl.searchParams.set('state', state);
+  
+  res.redirect(amazonAuthUrl.toString());
+});
+
+app.get('/auth/alexa/callback', async (req, res) => {
+  const { code, state } = req.query;
+  
+  // Verify state matches what we stored
+  if (state !== req.session.authState) {
+    return res.status(400).send('Invalid state parameter');
+  }
+  
+  try {
+    // Exchange authorization code for tokens
+    const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', {
+      grant_type: 'authorization_code',
+      code: code,
+      client_id: process.env.LWA_CLIENT_ID,
+      client_secret: process.env.LWA_CLIENT_SECRET,
+      redirect_uri: `${process.env.RAILWAY_URL || 'https://haunted-production.up.railway.app'}/auth/alexa/callback`
+    }, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    });
+    
+    const tokens = tokenResponse.data;
+    
+    // Store the access token
+    alexaUserTokens.set(tokens.access_token, {
+      created_at: Date.now(),
+      expires_in: tokens.expires_in
+    });
+    
+    // Redirect back to Alexa with the code
+    const redirectUri = req.session.authRedirectUri;
+    res.redirect(`${redirectUri}?code=${code}&state=${state}`);
+    
+  } catch (error) {
+    console.error('Alexa token exchange failed:', error.response?.data || error.message);
+    res.status(500).send('Authentication failed');
+  }
+});
+
+// ===================== END ALEXA LOGIC =====================
+
 /** ---------- [ADDED] Optional /watch page helper (serves watch.html if present) ---------- */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
