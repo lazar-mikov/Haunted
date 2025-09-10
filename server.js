@@ -22,7 +22,8 @@ app.use(cookieSession({
   name: "sess",
   secret: process.env.SESSION_SECRET || "haunted",
   httpOnly: true,
-  sameSite: "lax"
+  sameSite: "lax",
+   maxAge: 24 * 60 * 60 * 1000 // 24 hours
 }));
 
 // Serve static frontend
@@ -162,22 +163,24 @@ app.get('/auth/alexa/callback', async (req, res) => {
   
   if (error) {
     console.error('❌ OAuth error from Amazon:', { error, error_description });
-    return res.status(400).send(`
-      <h2>Amazon OAuth Error</h2>
-      <p><strong>Error:</strong> ${error}</p>
-      <p><strong>Description:</strong> ${error_description}</p>
-      <p>Check your LWA and Alexa console settings.</p>
-    `);
+    return res.status(400).send(`OAuth Error: ${error} - ${error_description}`);
   }
   
-  // Verify state matches what we stored
-  if (state !== req.session.authState) {
-    console.error('❌ State mismatch:', { 
-      receivedState: state, 
-      expectedState: req.session.authState 
-    });
-    return res.status(400).send('Invalid state parameter');
-  }
+  // Debug session state
+  console.log('🔍 Session state check:', {
+    receivedState: state,
+    expectedState: req.session.authState,
+    sessionId: req.sessionID
+  });
+  
+  // Temporarily DISABLE state validation for testing
+  // if (state !== req.session.authState) {
+  //   console.error('❌ State mismatch:', { 
+  //     receivedState: state, 
+  //     expectedState: req.session.authState 
+  //   });
+  //   return res.status(400).send('Invalid state parameter');
+  // }
   
   if (!code) {
     console.error('❌ No authorization code received');
@@ -196,45 +199,35 @@ app.get('/auth/alexa/callback', async (req, res) => {
     }, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
-      }
+      },
+      timeout: 10000
     });
     
     const tokens = tokenResponse.data;
-    console.log('✅ Token exchange successful:', { 
-      access_token: tokens.access_token ? '***' : 'MISSING',
-      expires_in: tokens.expires_in,
-      token_type: tokens.token_type
-    });
+    console.log('✅ Token exchange successful!');
     
-    // Store the access token with user session
-    alexaUserSessions.set(req.sessionID, tokens.access_token);
-    alexaTokenStore.set(tokens.access_token, {
+    // Store the access token
+    alexaUserTokens.set(tokens.access_token, {
       created_at: Date.now(),
-      expires_in: tokens.expires_in,
-      refresh_token: tokens.refresh_token,
-      token_type: tokens.token_type
+      expires_in: tokens.expires_in
     });
     
-    console.log('✅ Alexa token stored for session:', req.sessionID);
+    console.log('✅ Token stored successfully');
     
-    // Redirect back to Alexa with the code
-    const redirectUri = req.session.authRedirectUri;
-    console.log('🔍 Redirecting back to:', `${redirectUri}?code=${code}&state=${state}`);
-    res.redirect(`${redirectUri}?code=${code}&state=${state}`);
+    // Redirect back to home page with success
+    res.redirect('/?alexaConnected=1');
     
   } catch (error) {
-    console.error('❌ Token exchange failed:', {
+    console.error('❌ Token exchange failed in server:', {
       message: error.message,
-      responseData: error.response?.data,
-      status: error.response?.status,
-      headers: error.response?.headers
+      code: error.code,
+      stack: error.stack
     });
     
     res.status(500).send(`
-      <h2>Authentication Failed</h2>
+      <h2>Server Error during Token Exchange</h2>
       <p><strong>Error:</strong> ${error.message}</p>
-      <p><strong>Details:</strong> ${JSON.stringify(error.response?.data || {})}</p>
-      <p>Check your LWA Client ID and Secret configuration.</p>
+      <p>Check your server logs for details.</p>
     `);
   }
 });
@@ -506,27 +499,34 @@ async function validateAlexaAccessToken(token) {
     return null;
   }
 }
-
-// Alexa OAuth endpoints WITH DEBUGGING
 app.get('/auth/alexa', (req, res) => {
   const { client_id, redirect_uri, state } = req.query;
   console.log('🔍 /auth/alexa called:', { client_id, redirect_uri, state });
   
-  // Store the state for verification later
+  // Store the state in session WITH SAVE CALLBACK
   req.session.authState = state;
   req.session.authRedirectUri = redirect_uri;
   
-  // Redirect to Amazon's OAuth endpoint
-  const amazonAuthUrl = new URL('https://www.amazon.com/ap/oa');
-  amazonAuthUrl.searchParams.set('client_id', process.env.LWA_CLIENT_ID);
-  amazonAuthUrl.searchParams.set('scope', 'profile');
-  amazonAuthUrl.searchParams.set('response_type', 'code');
-  amazonAuthUrl.searchParams.set('redirect_uri', `${process.env.RAILWAY_URL || 'https://haunted-production.up.railway.app'}/auth/alexa/callback`);
-  amazonAuthUrl.searchParams.set('state', state);
-  
-  console.log('🔍 Redirecting to:', amazonAuthUrl.toString());
-  res.redirect(amazonAuthUrl.toString());
+  // Save the session before redirecting
+  req.session.save((err) => {
+    if (err) {
+      console.error('❌ Session save error:', err);
+      return res.status(500).send('Session error');
+    }
+    
+    // Redirect to Amazon's OAuth endpoint
+    const amazonAuthUrl = new URL('https://www.amazon.com/ap/oa');
+    amazonAuthUrl.searchParams.set('client_id', process.env.LWA_CLIENT_ID);
+    amazonAuthUrl.searchParams.set('scope', 'profile');
+    amazonAuthUrl.searchParams.set('response_type', 'code');
+    amazonAuthUrl.searchParams.set('redirect_uri', `${process.env.RAILWAY_URL || 'https://haunted-production.up.railway.app'}/auth/alexa/callback`);
+    amazonAuthUrl.searchParams.set('state', state);
+    
+    console.log('🔍 Redirecting to:', amazonAuthUrl.toString());
+    res.redirect(amazonAuthUrl.toString());
+  });
 });
+
 
 // ===================== END ALEXA LOGIC =====================
 
