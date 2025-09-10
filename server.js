@@ -250,44 +250,31 @@ app.get('/auth/alexa', (req, res) => {
 });
 
 app.get('/auth/alexa/callback', async (req, res) => {
-  console.log('🔍 /auth/alexa/callback called with query:', req.query);
-  const { code, state, error, error_description } = req.query;
+  console.log('🔄 Alexa callback received:', req.query);
   
+  const { code, error, error_description } = req.query;
+  
+  // Handle errors from Amazon
   if (error) {
-    console.error('❌ OAuth error from Amazon:', { error, error_description });
-    return res.status(400).send(`OAuth Error: ${error} - ${error_description}`);
+    console.error('❌ Amazon OAuth error:', error, error_description);
+    return res.redirect('/?alexaError=1&message=' + encodeURIComponent(error));
   }
-  
-  // Debug session state
-  console.log('🔍 Session state check:', {
-    receivedState: state,
-    expectedState: req.session.authState,
-    sessionId: req.sessionID
-  });
-  
-  // Temporarily DISABLE state validation for testing
-  // if (state !== req.session.authState) {
-  //   console.error('❌ State mismatch:', { 
-  //     receivedState: state, 
-  //     expectedState: req.session.authState 
-  //   });
-  //   return res.status(400).send('Invalid state parameter');
-  // }
   
   if (!code) {
     console.error('❌ No authorization code received');
-    return res.status(400).send('No authorization code received');
+    return res.redirect('/?alexaError=1&message=No authorization code');
   }
   
   try {
-    console.log('🔍 Attempting token exchange with code:', code);
+    console.log('🔑 Exchanging code for tokens...');
     
+    // Exchange code for access token
     const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', {
       grant_type: 'authorization_code',
       code: code,
       client_id: process.env.LWA_CLIENT_ID,
       client_secret: process.env.LWA_CLIENT_SECRET,
-      redirect_uri: `${process.env.RAILWAY_URL || 'https://haunted-production.up.railway.app'}/auth/alexa/callback`
+      redirect_uri: 'https://haunted-production.up.railway.app/auth/alexa/callback'
     }, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
@@ -298,31 +285,35 @@ app.get('/auth/alexa/callback', async (req, res) => {
     const tokens = tokenResponse.data;
     console.log('✅ Token exchange successful!');
     
-    // Store the access token
-    alexaUserTokens.set(tokens.access_token, {
-      created_at: Date.now(),
-      expires_in: tokens.expires_in
-    });
+    // SIMPLE storage - just store the access token with session
+    alexaUserSessions.set(req.sessionID, tokens.access_token);
     
-    console.log('✅ Token stored successfully');
+    console.log('💾 Token stored for session:', req.sessionID);
+    console.log('📦 Token preview:', tokens.access_token.substring(0, 20) + '...');
     
-    // Redirect back to home page with success
-    res.redirect('/?alexaConnected=1');
+    // Redirect to success page
+    res.redirect('/?alexaConnected=1&success=true');
     
   } catch (error) {
-    console.error('❌ Token exchange failed in server:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
-    
-    res.status(500).send(`
-      <h2>Server Error during Token Exchange</h2>
-      <p><strong>Error:</strong> ${error.message}</p>
-      <p>Check your server logs for details.</p>
-    `);
+    console.error('💥 Token exchange failed:', error.message);
+    if (error.response) {
+      console.error('📋 Response data:', error.response.data);
+      console.error('📋 Response status:', error.response.status);
+    }
+    res.redirect('/?alexaError=1&message=' + encodeURIComponent(error.message));
   }
 });
+
+
+
+// Simple status endpoint
+// Simple status endpoint
+app.get('/api/alexa/status', (req, res) => {
+  const isConnected = alexaUserSessions.has(req.sessionID);
+  console.log('🔍 Status check - connected:', isConnected, 'session:', req.sessionID);
+  res.json({ connected: isConnected });
+});
+
 
 // Add this endpoint to your server.js
 app.get('/api/alexa/status', (req, res) => {
@@ -331,12 +322,18 @@ app.get('/api/alexa/status', (req, res) => {
   res.json({ connected: hasAlexaToken });
 });
 
-// Alexa connection status
-app.get('/api/alexa/status', (req, res) => {
-  const accessToken = alexaUserSessions.get(req.sessionID);
-  const hasValidToken = accessToken && alexaTokenStore.has(accessToken);
-  res.json({ connected: hasValidToken });
+// Debug endpoint to see what's stored
+app.get('/api/debug/simple-tokens', (req, res) => {
+  const result = {
+    currentSessionId: req.sessionID,
+    hasToken: alexaUserSessions.has(req.sessionID),
+    totalSessions: alexaUserSessions.size,
+    allSessionIds: Array.from(alexaUserSessions.keys())
+  };
+  console.log('📊 Debug tokens:', result);
+  res.json(result);
 });
+
 
 // Get Alexa connection URL
 app.get('/api/alexa/connect-url', (req, res) => {
@@ -448,6 +445,21 @@ app.get('/api/debug/tokens', (req, res) => {
     hasSessionToken: alexaUserSessions.has(req.sessionID),
     totalSessions: alexaUserSessions.size,
     totalTokens: alexaTokenStore.size
+  });
+});
+
+// Debug endpoint to see ALL sessions and tokens
+app.get('/api/debug/all-tokens', (req, res) => {
+  res.json({
+    currentSessionId: req.sessionID,
+    allSessions: Array.from(alexaUserSessions.entries()).map(([sessionId, token]) => ({
+      sessionId,
+      hasToken: !!token,
+      tokenPreview: token ? `${token.substring(0, 10)}...` : null
+    })),
+    totalSessions: alexaUserSessions.size,
+    totalTokens: alexaTokenStore.size,
+    recentCallback: req.session.lastCallbackData // We'll add this next
   });
 });
 
