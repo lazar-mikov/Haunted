@@ -14,6 +14,9 @@ const app = express();
 let tokens = new Map();
 let authCodes = new Map();
 
+// Alexa token storage
+const alexaUserSessions = new Map(); // sessionId -> accessToken
+
 /** [ADDED] parse urlencoded too (IFTTT & some tools send form bodies) */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // <— ADDED
