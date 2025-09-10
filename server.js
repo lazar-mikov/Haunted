@@ -324,6 +324,32 @@ app.get('/auth/alexa/callback', async (req, res) => {
   }
 });
 
+// Add this endpoint to your server.js
+app.get('/api/alexa/status', (req, res) => {
+  // Check if user has Alexa tokens stored
+  const hasAlexaToken = alexaUserTokens.size > 0;
+  res.json({ connected: hasAlexaToken });
+});
+
+// Alexa connection status
+app.get('/api/alexa/status', (req, res) => {
+  const accessToken = alexaUserSessions.get(req.sessionID);
+  const hasValidToken = accessToken && alexaTokenStore.has(accessToken);
+  res.json({ connected: hasValidToken });
+});
+
+// Get Alexa connection URL
+app.get('/api/alexa/connect-url', (req, res) => {
+  const authUrl = `https://www.amazon.com/ap/oa?client_id=${process.env.LWA_CLIENT_ID}&scope=profile&response_type=code&redirect_uri=${encodeURIComponent('https://haunted-production.up.railway.app/auth/alexa/callback')}&state=connect`;
+  res.json({ url: authUrl });
+});
+
+// Disconnect Alexa
+app.post('/api/alexa/disconnect', (req, res) => {
+  alexaUserSessions.delete(req.sessionID);
+  res.json({ success: true, message: 'Alexa disconnected' });
+});
+
 // ===================== END ALEXA LOGIC =====================
 
 /** ---------- [ADDED] Optional /watch page helper (serves watch.html if present) ---------- */
@@ -415,6 +441,17 @@ app.get("/dev/debug-tokens", (req, res) => {
   }
 });
 
+// Debug endpoint to check tokens
+app.get('/api/debug/tokens', (req, res) => {
+  res.json({
+    sessionId: req.sessionID,
+    hasSessionToken: alexaUserSessions.has(req.sessionID),
+    totalSessions: alexaUserSessions.size,
+    totalTokens: alexaTokenStore.size
+  });
+});
+
+
 // copies the latest server token into THIS browser session, then goes to /watch
 app.get("/dev/prime-session", (req, res) => {
   try {
@@ -446,6 +483,7 @@ app.get("/api/debug/token", (req, res) => {
     tokensMapSize: tokens.size
   });
 });
+
 
 /** ---------- Demo helpers (IFTTT Webhooks) ---------- */
 /** ---------- Demo helpers (IFTTT Webhooks) ---------- */
