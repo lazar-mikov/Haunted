@@ -32,6 +32,11 @@ app.use(express.static("public"));
 // Store Alexa access tokens
 const alexaUserTokens = new Map();
 
+// ===================== ALEXA TOKEN MANAGEMENT =====================
+// Store user tokens with session mapping
+const alexaUserSessions = new Map(); // sessionId -> accessToken
+const alexaTokenStore = new Map();   // accessToken -> tokenInfo
+
 // Alexa Smart Home endpoint
 app.post('/alexa/smarthome', async (req, res) => {
   console.log('Alexa Smart Home request:', JSON.stringify(req.body, null, 2));
@@ -148,6 +153,171 @@ app.post('/api/alexa/trigger', async (req, res) => {
     console.error('Alexa trigger error:', error);
     res.json({ success: false, message: error.message });
   }
+});
+
+// Update your /auth/alexa/callback endpoint:
+app.get('/auth/alexa/callback', async (req, res) => {
+  const { code, state } = req.query;
+  
+  // Verify state matches what we stored
+  if (state !== req.session.authState) {
+    return res.status(400).send('Invalid state parameter');
+  }
+  
+  try {
+    // Exchange authorization code for tokens
+    const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', {
+      grant_type: 'authorization_code',
+      code: code,
+      client_id: process.env.LWA_CLIENT_ID,
+      client_secret: process.env.LWA_CLIENT_SECRET,
+      redirect_uri: `${process.env.RAILWAY_URL || 'https://haunted-production.up.railway.app'}/auth/alexa/callback`
+    }, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    });
+    
+    const tokens = tokenResponse.data;
+    
+    // Store the access token with user session
+    alexaUserSessions.set(req.sessionID, tokens.access_token);
+    alexaTokenStore.set(tokens.access_token, {
+      created_at: Date.now(),
+      expires_in: tokens.expires_in,
+      refresh_token: tokens.refresh_token,
+      token_type: tokens.token_type
+    });
+    
+    console.log('Alexa token stored for session:', req.sessionID);
+    
+    // Redirect back to Alexa with the code
+    const redirectUri = req.session.authRedirectUri;
+    res.redirect(`${redirectUri}?code=${code}&state=${state}`);
+    
+  } catch (error) {
+    console.error('Alexa token exchange failed:', error.response?.data || error.message);
+    res.status(500).send('Authentication failed');
+  }
+});
+
+// Update Alexa status endpoint
+app.get('/api/alexa/status', (req, res) => {
+  const accessToken = alexaUserSessions.get(req.sessionID);
+  const hasValidToken = accessToken && alexaTokenStore.has(accessToken);
+  res.json({ connected: hasValidToken });
+});
+
+// Update Alexa trigger endpoint to use session-based tokens
+app.post('/api/alexa/trigger', async (req, res) => {
+  const { effect, origin } = req.body;
+  
+  try {
+    const endpointMap = {
+      'blackout': 'haunted-blackout',
+      'flash_red': 'haunted-flash-red', 
+      'plug_on': 'haunted-plug-on',
+      'reset': 'haunted-reset'
+    };
+    
+    const endpointId = endpointMap[effect];
+    if (!endpointId) {
+      return res.json({ success: false, message: 'Invalid effect' });
+    }
+    
+    // Get access token from user session
+    let accessToken = alexaUserSessions.get(req.sessionID);
+    
+    if (!accessToken || !alexaTokenStore.has(accessToken)) {
+      return res.json({ success: false, message: 'No Alexa connection found. Please reconnect your Alexa account.' });
+    }
+    
+    // Validate token expiration
+    const tokenInfo = alexaTokenStore.get(accessToken);
+    const isExpired = Date.now() > (tokenInfo.created_at + (tokenInfo.expires_in * 1000));
+    
+    if (isExpired) {
+      // Try to refresh token
+      try {
+        const refreshResponse = await axios.post('https://api.amazon.com/auth/o2/token', {
+          grant_type: 'refresh_token',
+          refresh_token: tokenInfo.refresh_token,
+          client_id: process.env.LWA_CLIENT_ID,
+          client_secret: process.env.LWA_CLIENT_SECRET
+        }, {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        });
+        
+        const newTokens = refreshResponse.data;
+        alexaUserSessions.set(req.sessionID, newTokens.access_token);
+        alexaTokenStore.set(newTokens.access_token, {
+          created_at: Date.now(),
+          expires_in: newTokens.expires_in,
+          refresh_token: newTokens.refresh_token || tokenInfo.refresh_token,
+          token_type: newTokens.token_type
+        });
+        
+        // Use new token
+        accessToken = newTokens.access_token;
+        
+      } catch (refreshError) {
+        console.error('Token refresh failed:', refreshError.response?.data || refreshError.message);
+        alexaUserSessions.delete(req.sessionID);
+        return res.json({ success: false, message: 'Alexa session expired. Please reconnect.' });
+      }
+    }
+    
+    // Call Alexa Smart Home API
+    const alexaResponse = await fetch('https://api.eu.amazonalexa.com/v3/events', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        event: {
+          header: {
+            namespace: "Alexa.SceneController",
+            name: "Activate",
+            messageId: Math.random().toString(36).substring(2) + Date.now().toString(36),
+            payloadVersion: "3"
+          },
+          endpoint: {
+            endpointId: endpointId
+          },
+          payload: {}
+        }
+      })
+    });
+    
+    if (!alexaResponse.ok) {
+      const errorText = await alexaResponse.text();
+      throw new Error(`Alexa API error: ${alexaResponse.status} - ${errorText}`);
+    }
+    
+    const responseData = await alexaResponse.json();
+    console.log('Alexa API success:', responseData);
+    
+    res.json({ success: true, message: `Triggered ${effect} via Alexa` });
+    
+  } catch (error) {
+    console.error('Alexa trigger error:', error);
+    res.json({ success: false, message: error.message });
+  }
+});
+
+// Add endpoint to get Alexa connection URL
+app.get('/api/alexa/connect', (req, res) => {
+  const authUrl = `https://www.amazon.com/ap/oa?client_id=${process.env.LWA_CLIENT_ID}&scope=profile&response_type=code&redirect_uri=${process.env.RAILWAY_URL || 'https://haunted-production.up.railway.app'}/auth/alexa/callback&state=connect`;
+  res.json({ url: authUrl });
+});
+
+// Add endpoint to disconnect Alexa
+app.post('/api/alexa/disconnect', (req, res) => {
+  alexaUserSessions.delete(req.sessionID);
+  res.json({ success: true, message: 'Alexa disconnected' });
 });
 
 // Alexa discovery handler
@@ -316,46 +486,6 @@ app.get('/auth/alexa', (req, res) => {
   amazonAuthUrl.searchParams.set('state', state);
   
   res.redirect(amazonAuthUrl.toString());
-});
-
-app.get('/auth/alexa/callback', async (req, res) => {
-  const { code, state } = req.query;
-  
-  // Verify state matches what we stored
-  if (state !== req.session.authState) {
-    return res.status(400).send('Invalid state parameter');
-  }
-  
-  try {
-    // Exchange authorization code for tokens
-    const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', {
-      grant_type: 'authorization_code',
-      code: code,
-      client_id: process.env.LWA_CLIENT_ID,
-      client_secret: process.env.LWA_CLIENT_SECRET,
-      redirect_uri: `${process.env.RAILWAY_URL || 'https://haunted-production.up.railway.app'}/auth/alexa/callback`
-    }, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      }
-    });
-    
-    const tokens = tokenResponse.data;
-    
-    // Store the access token
-    alexaUserTokens.set(tokens.access_token, {
-      created_at: Date.now(),
-      expires_in: tokens.expires_in
-    });
-    
-    // Redirect back to Alexa with the code
-    const redirectUri = req.session.authRedirectUri;
-    res.redirect(`${redirectUri}?code=${code}&state=${state}`);
-    
-  } catch (error) {
-    console.error('Alexa token exchange failed:', error.response?.data || error.message);
-    res.status(500).send('Authentication failed');
-  }
 });
 
 // ===================== END ALEXA LOGIC =====================
@@ -551,7 +681,7 @@ async function handleTrigger(req, res, body) {
 
     // OPTION B: Webhooks fallback (demo) - THIS WILL RUN NOW
     if (!req.session.makerKey) {
-      return res.status(400).json({ ok: false, error: "No Maker key (demo mode). Paste it on Page 1." });
+      return res.status(400).json({ ok: false, error: 'No Maker key (demo mode). Paste it on Page 1.' });
     }
     const url = `https://maker.ifttt.com/trigger/${encodeURIComponent(effect)}/json/with/key/${req.session.makerKey}`;
     await axios.post(url, body.payload || {}, { timeout: 4000 });
