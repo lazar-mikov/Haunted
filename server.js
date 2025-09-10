@@ -157,15 +157,36 @@ app.post('/api/alexa/trigger', async (req, res) => {
 
 // Update your /auth/alexa/callback endpoint:
 app.get('/auth/alexa/callback', async (req, res) => {
-  const { code, state } = req.query;
+  console.log('🔍 /auth/alexa/callback called with query:', req.query);
+  const { code, state, error, error_description } = req.query;
+  
+  if (error) {
+    console.error('❌ OAuth error from Amazon:', { error, error_description });
+    return res.status(400).send(`
+      <h2>Amazon OAuth Error</h2>
+      <p><strong>Error:</strong> ${error}</p>
+      <p><strong>Description:</strong> ${error_description}</p>
+      <p>Check your LWA and Alexa console settings.</p>
+    `);
+  }
   
   // Verify state matches what we stored
   if (state !== req.session.authState) {
+    console.error('❌ State mismatch:', { 
+      receivedState: state, 
+      expectedState: req.session.authState 
+    });
     return res.status(400).send('Invalid state parameter');
   }
   
+  if (!code) {
+    console.error('❌ No authorization code received');
+    return res.status(400).send('No authorization code received');
+  }
+  
   try {
-    // Exchange authorization code for tokens
+    console.log('🔍 Attempting token exchange with code:', code);
+    
     const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', {
       grant_type: 'authorization_code',
       code: code,
@@ -179,6 +200,11 @@ app.get('/auth/alexa/callback', async (req, res) => {
     });
     
     const tokens = tokenResponse.data;
+    console.log('✅ Token exchange successful:', { 
+      access_token: tokens.access_token ? '***' : 'MISSING',
+      expires_in: tokens.expires_in,
+      token_type: tokens.token_type
+    });
     
     // Store the access token with user session
     alexaUserSessions.set(req.sessionID, tokens.access_token);
@@ -189,15 +215,27 @@ app.get('/auth/alexa/callback', async (req, res) => {
       token_type: tokens.token_type
     });
     
-    console.log('Alexa token stored for session:', req.sessionID);
+    console.log('✅ Alexa token stored for session:', req.sessionID);
     
     // Redirect back to Alexa with the code
     const redirectUri = req.session.authRedirectUri;
+    console.log('🔍 Redirecting back to:', `${redirectUri}?code=${code}&state=${state}`);
     res.redirect(`${redirectUri}?code=${code}&state=${state}`);
     
   } catch (error) {
-    console.error('Alexa token exchange failed:', error.response?.data || error.message);
-    res.status(500).send('Authentication failed');
+    console.error('❌ Token exchange failed:', {
+      message: error.message,
+      responseData: error.response?.data,
+      status: error.response?.status,
+      headers: error.response?.headers
+    });
+    
+    res.status(500).send(`
+      <h2>Authentication Failed</h2>
+      <p><strong>Error:</strong> ${error.message}</p>
+      <p><strong>Details:</strong> ${JSON.stringify(error.response?.data || {})}</p>
+      <p>Check your LWA Client ID and Secret configuration.</p>
+    `);
   }
 });
 
@@ -469,9 +507,10 @@ async function validateAlexaAccessToken(token) {
   }
 }
 
-// Alexa OAuth endpoints
+// Alexa OAuth endpoints WITH DEBUGGING
 app.get('/auth/alexa', (req, res) => {
   const { client_id, redirect_uri, state } = req.query;
+  console.log('🔍 /auth/alexa called:', { client_id, redirect_uri, state });
   
   // Store the state for verification later
   req.session.authState = state;
@@ -485,6 +524,7 @@ app.get('/auth/alexa', (req, res) => {
   amazonAuthUrl.searchParams.set('redirect_uri', `${process.env.RAILWAY_URL || 'https://haunted-production.up.railway.app'}/auth/alexa/callback`);
   amazonAuthUrl.searchParams.set('state', state);
   
+  console.log('🔍 Redirecting to:', amazonAuthUrl.toString());
   res.redirect(amazonAuthUrl.toString());
 });
 
@@ -608,6 +648,16 @@ app.get("/api/debug/token", (req, res) => {
     hasSessionToken: !!req.session?.ifttt?.access_token,
     sessionToken: req.session?.ifttt?.access_token ? "***" : null,
     tokensMapSize: tokens.size
+  });
+});
+
+// Add this anywhere in your server.js (maybe near other debug endpoints)
+app.get('/api/debug/lwa-config', (req, res) => {
+  res.json({
+    lwaClientId: process.env.LWA_CLIENT_ID ? 'SET' : 'MISSING',
+    lwaClientSecret: process.env.LWA_CLIENT_SECRET ? 'SET' : 'MISSING',
+    railwayUrl: process.env.RAILWAY_URL || 'https://haunted-production.up.railway.app',
+    callbackUrl: `${process.env.RAILWAY_URL || 'https://haunted-production.up.railway.app'}/auth/alexa/callback`
   });
 });
 
