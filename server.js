@@ -39,26 +39,43 @@ const alexaUserTokens = new Map();
 // Alexa Smart Home endpoint
 app.post('/alexa/smarthome', async (req, res) => {
   console.log('Alexa Smart Home request:', JSON.stringify(req.body, null, 2));
-  
+
   const { directive } = req.body;
   const authHeader = req.headers.authorization;
-  
+
+  // Extra helpful log (added)
+  console.log('🔍 Alexa request:', {
+    namespace: directive?.header?.namespace,
+    name: directive?.header?.name,
+    hasAuth: !!authHeader,
+  });
+
+  // ✅ Allow discovery requests without authentication (added)
+  if (
+    directive?.header?.namespace === 'Alexa.Discovery' &&
+    directive?.header?.name === 'Discover'
+  ) {
+    console.log('✅ Allowing discovery request without auth');
+    return handleAlexaDiscovery(directive, res);
+  }
+
+  // Require auth for all other requests (moved below discovery allowance)
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log('❌ Missing auth token for non-discovery request');
     return res.status(401).json({ error: 'Missing access token' });
   }
-  
+
   const accessToken = authHeader.substring(7);
-  
-  
-  // Validate the token with Amazon
+
+  // Validate the token with Amazon (unchanged)
   try {
     const tokenInfo = await validateAlexaAccessToken(accessToken);
-    
+
     if (!tokenInfo || tokenInfo.aud !== process.env.LWA_CLIENT_ID) {
       return res.status(401).json({ error: 'Invalid access token' });
     }
-    
-    // Handle different directive types
+
+    // Handle different directive types (kept as-is; Discovery already handled above)
     switch (directive.header.namespace) {
       case 'Alexa.Discovery':
         return handleAlexaDiscovery(directive, res);
@@ -67,12 +84,12 @@ app.post('/alexa/smarthome', async (req, res) => {
       default:
         return res.status(400).json({ error: 'UNSUPPORTED_OPERATION' });
     }
-    
   } catch (error) {
     console.error('Alexa token validation failed:', error);
     return res.status(401).json({ error: 'Token validation failed' });
   }
 });
+
 
 // Alexa discovery handler
 function handleAlexaDiscovery(directive, res) {
@@ -337,6 +354,14 @@ app.get('/api/debug/simple-tokens', (req, res) => {
   res.json(result);
 });
 
+app.post('/api/debug/alexa-raw', (req, res) => {
+  console.log('📋 Raw Alexa request:', {
+    headers: req.headers,
+    body: req.body,
+    timestamp: new Date().toISOString()
+  });
+  res.json({ received: true });
+});
 
 // Get Alexa connection URL
 app.get('/api/alexa/connect-url', (req, res) => {
