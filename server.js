@@ -452,6 +452,23 @@ app.get('/api/debug/token-details', (req, res) => {
   res.json(result);
 });
 
+// Simple tokens debug endpoint
+app.get('/api/debug/simple-tokens', (req, res) => {
+  const accessToken = alexaUserSessions.get(req.sessionID);
+  
+  const result = {
+    currentSessionId: req.sessionID,
+    hasToken: !!accessToken,
+    tokenLength: accessToken ? accessToken.length : 0,
+    tokenPreview: accessToken ? `${accessToken.substring(0, 10)}...${accessToken.substring(accessToken.length - 5)}` : null,
+    totalSessions: alexaUserSessions.size,
+    allSessionIds: Array.from(alexaUserSessions.keys())
+  };
+  
+  console.log('Token debug:', result);
+  res.json(result);
+});
+
 // ===================== END ALEXA LOGIC =====================
 
 // [REST OF YOUR EXISTING CODE REMAINS UNCHANGED - IFTTT,
