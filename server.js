@@ -469,6 +469,39 @@ app.get('/api/debug/simple-tokens', (req, res) => {
   res.json(result);
 });
 
+// Transfer Alexa tokens between sessions
+app.post('/api/alexa/transfer-session', (req, res) => {
+  // Get the session ID from the callback (you'll need to store this temporarily)
+  const callbackSessionId = req.body.callbackSessionId;
+  
+  if (!callbackSessionId) {
+    return res.json({ success: false, message: 'No callback session ID provided' });
+  }
+  
+  // Get tokens from callback session
+  const accessToken = alexaUserSessions.get(callbackSessionId);
+  const refreshToken = alexaRefreshTokens.get(callbackSessionId);
+  
+  if (!accessToken) {
+    return res.json({ success: false, message: 'No tokens found in callback session' });
+  }
+  
+  // Transfer to current session
+  alexaUserSessions.set(req.sessionID, accessToken);
+  if (refreshToken) {
+    alexaRefreshTokens.set(req.sessionID, refreshToken);
+  }
+  
+  console.log('✅ Tokens transferred from session:', callbackSessionId, 'to:', req.sessionID);
+  
+  res.json({ 
+    success: true, 
+    message: 'Tokens transferred successfully',
+    fromSession: callbackSessionId,
+    toSession: req.sessionID
+  });
+});
+
 // ===================== END ALEXA LOGIC =====================
 
 // [REST OF YOUR EXISTING CODE REMAINS UNCHANGED - IFTTT,
