@@ -264,49 +264,34 @@ app.get('/auth/alexa/callback', async (req, res) => {
   
   try {
     const { code, state } = req.query;
+    console.log('🔑 Exchanging code for tokens...');
     
-    if (!req.sessionID) {
-      console.error('❌ No session ID - generating new session');
-      req.session.regenerate((err) => {
-        if (err) {
-          console.error('Session regeneration failed:', err);
-          return res.status(500).send('Session error');
-        }
-        console.log('✅ New session ID:', req.sessionID);
-        proceedWithTokenExchange();
-      });
-    } else {
-      proceedWithTokenExchange();
-    }
+    const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', {
+      grant_type: 'authorization_code',
+      code: code,
+      client_id: process.env.LWA_CLIENT_ID,
+      client_secret: process.env.LWA_CLIENT_SECRET,
+      redirect_uri: 'https://haunted-production.up.railway.app/auth/alexa/callback'
+    }, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      timeout: 10000
+    });
     
-    async function proceedWithTokenExchange() {
-      console.log('🔑 Exchanging code for tokens for session:', req.sessionID);
-      
-      const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', {
-        grant_type: 'authorization_code',
-        code: code,
-        client_id: process.env.LWA_CLIENT_ID,
-        client_secret: process.env.LWA_CLIENT_SECRET,
-        redirect_uri: 'https://haunted-production.up.railway.app/auth/alexa/callback'
-      }, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        timeout: 10000
-      });
-      
-      const tokens = tokenResponse.data;
-      console.log('✅ Token exchange successful!');
-      
-      // STORE BOTH TOKENS WITH PROPER SESSION ID
-      alexaUserSessions.set(req.sessionID, tokens.access_token);
-      alexaRefreshTokens.set(req.sessionID, tokens.refresh_token);
-      
-      console.log('✅ Tokens stored for session:', req.sessionID);
-      
-      // Redirect back to home page with success
-      res.redirect('/?alexaConnected=1');
-    }
+    const tokens = tokenResponse.data;
+    console.log('✅ Token exchange successful!');
+    
+    // Store tokens with a CONSISTENT key (not session-dependent)
+    const storageKey = 'alexa_main_tokens'; // Use a fixed key instead of session ID
+    
+    alexaUserSessions.set(storageKey, tokens.access_token);
+    alexaRefreshTokens.set(storageKey, tokens.refresh_token);
+    
+    console.log('✅ Tokens stored with fixed key');
+    
+    // Redirect back with success - this will load your main page
+    res.redirect('/?alexaConnected=1');
     
   } catch (error) {
     console.error('💥 Token exchange failed:', error.message);
@@ -422,12 +407,15 @@ app.get('/api/alexa/verify-token', async (req, res) => {
 });
 
 // Simple token status endpoint
+// Simple token status endpoint - use fixed key
 app.get('/api/alexa/status', (req, res) => {
-  const accessToken = alexaUserSessions.get(req.sessionID);
+  const storageKey = 'alexa_main_tokens';
+  const accessToken = alexaUserSessions.get(storageKey);
+  
   res.json({ 
     connected: !!accessToken,
-    sessionId: req.sessionID,
-    hasToken: !!accessToken
+    hasToken: !!accessToken,
+    storageKey: storageKey
   });
 });
 
