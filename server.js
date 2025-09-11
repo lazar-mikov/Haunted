@@ -606,44 +606,6 @@ app.post('/api/alexa/transfer-session', (req, res) => {
 });
 
 // Add this function to your server
-async function refreshAlexaToken() {
-  try {
-    const storageKey = 'alexa_main_tokens';
-    const refreshToken = alexaRefreshTokens.get(storageKey);
-    
-    if (!refreshToken) {
-      throw new Error('No refresh token available');
-    }
-    
-    console.log('🔄 Refreshing Alexa token...');
-    
-    const response = await axios.post('https://api.amazon.com/auth/o2/token', {
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-      client_id: process.env.LWA_CLIENT_ID,
-      client_secret: process.env.LWA_CLIENT_SECRET
-    }, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      }
-    });
-    
-    const newTokens = response.data;
-    
-    // Store the new tokens
-    alexaUserSessions.set(storageKey, newTokens.access_token);
-    if (newTokens.refresh_token) {
-      alexaRefreshTokens.set(storageKey, newTokens.refresh_token);
-    }
-    
-    console.log('✅ Token refreshed successfully');
-    return newTokens.access_token;
-    
-  } catch (error) {
-    console.error('❌ Token refresh failed:', error.message);
-    throw error;
-  }
-}
 
 // ===================== END ALEXA LOGIC =====================
 
