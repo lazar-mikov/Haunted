@@ -72,6 +72,34 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
   }
 });
 
+app.get('/api/alexa/verify-token', (req, res) => {
+  // First try to get token from query parameter
+  let token = req.query.token;
+  
+  // If not in query, try session (for backward compatibility)
+  if (!token) {
+    const storageKey = 'alexa_main_tokens';
+    token = alexaUserSessions.get(storageKey);
+  }
+  
+  if (!token) {
+    return res.json({ valid: false, message: 'No token provided' });
+  }
+  
+  console.log('Verifying token:', token.substring(0, 20) + '...');
+  
+  // Verify token with Amazon API
+  verifyTokenWithAmazon(token).then(isValid => {
+    res.json({ 
+      valid: isValid, 
+      message: isValid ? 'Token is valid' : 'Token is invalid',
+      tokenSource: req.query.token ? 'query-parameter' : 'session'
+    });
+  }).catch(error => {
+    res.json({ valid: false, message: 'Verification error: ' + error.message });
+  });
+});
+
 // ===================== ALEXA SMART HOME LOGIC =====================
 
 // Alexa Smart Home endpoint
