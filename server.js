@@ -16,7 +16,7 @@ let authCodes = new Map();
 
 // Alexa token storage
 const alexaUserSessions = new Map(); // sessionId -> accessToken
-
+const alexaRefreshTokens = new Map();
 
 
 /**
@@ -501,12 +501,18 @@ app.get('/auth/alexa', (req, res) => {
 
 
 app.get('/auth/alexa/callback', async (req, res) => {
-  // 🧭 Extra session diagnostics (added)
+  // 🧭 Extra session diagnostics (kept + safe guard for missing session)
   console.log('🔍 Callback session ID:', req.sessionID);
   console.log('🔍 Callback session keys:', Object.keys(req.session || {}));
   console.log('🔄 Alexa callback received:', req.query);
 
-  const { code, error, error_description } = req.query;
+  const { code, error, error_description, state } = req.query;
+
+  // ✅ NEW: verify OAuth state to prevent CSRF (keeps working flow otherwise)
+  if (req.session?.authState && state && state !== req.session.authState) {
+    console.error('❌ State mismatch:', { expected: req.session.authState, got: state });
+    return res.redirect('/?alexaError=1&message=' + encodeURIComponent('State mismatch'));
+  }
 
   // Handle errors from Amazon (kept)
   if (error) {
@@ -522,14 +528,16 @@ app.get('/auth/alexa/callback', async (req, res) => {
   try {
     console.log('🔑 Exchanging code for tokens...');
 
-    // Exchange code for access/refresh tokens
-    // (use proper x-www-form-urlencoded body; headers+timeout kept)
+    // ✅ Use dynamic callback URL (keeps your original default)
+    const redirectUri = `${process.env.RAILWAY_URL || 'https://haunted-production.up.railway.app'}/auth/alexa/callback`;
+
+    // Exchange code for access/refresh tokens (kept, using x-www-form-urlencoded)
     const form = new URLSearchParams({
       grant_type: 'authorization_code',
       code: code,
       client_id: process.env.LWA_CLIENT_ID,
       client_secret: process.env.LWA_CLIENT_SECRET,
-      redirect_uri: 'https://haunted-production.up.railway.app/auth/alexa/callback'
+      redirect_uri: redirectUri
     });
 
     const tokenResponse = await axios.post(
@@ -560,8 +568,26 @@ app.get('/auth/alexa/callback', async (req, res) => {
       console.log('⏳ Access token expires_in (s):', tokens.expires_in);
     }
 
-    // Redirect to success page (kept)
-    res.redirect('/?alexaConnected=1&success=true');
+    // ✅ NEW: prefer redirect saved in session, fallback to your original success URL
+    const finalRedirect =
+      (req.session && req.session.authRedirectUri) ||
+      '/?alexaConnected=1&success=true';
+
+    // ✅ NEW: clear one-time session fields and save before redirecting
+    if (req.session) {
+      delete req.session.authState;
+      delete req.session.authRedirectUri;
+      return req.session.save((err) => {
+        if (err) {
+          console.error('❌ Session save error on callback:', err);
+          return res.redirect('/?alexaError=1&message=' + encodeURIComponent('Session save error'));
+        }
+        return res.redirect(finalRedirect);
+      });
+    }
+
+    // Fallback if no session object (unlikely)
+    return res.redirect(finalRedirect);
 
   } catch (error) {
     console.error('💥 Token exchange failed:', error.message);
@@ -573,6 +599,7 @@ app.get('/auth/alexa/callback', async (req, res) => {
     res.redirect('/?alexaError=1&message=' + encodeURIComponent(error.message));
   }
 });
+
 
 
 
