@@ -485,7 +485,7 @@ app.get('/auth/alexa', (req, res) => {
 
     // ✅ UPDATED: include Smart Home account linking scope (kept 'profile')
     // NOTE: space-separated scopes per Amazon OAuth
-    amazonAuthUrl.searchParams.set('scope', 'alexa::skills:account_linking profile');
+    amazonAuthUrl.searchParams.set('scope', 'smart_home');
 
     amazonAuthUrl.searchParams.set('response_type', 'code');
     amazonAuthUrl.searchParams.set(
