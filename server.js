@@ -487,6 +487,7 @@ app.get('/api/alexa/status', (req, res) => {
   res.json({ 
     connected: !!accessToken,
     hasToken: !!accessToken,
+    token: accessToken, // ← ADD THIS LINE to return the actual token
     storageKey: storageKey
   });
 });
