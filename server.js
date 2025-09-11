@@ -657,6 +657,58 @@ app.get('/api/debug/token-status', (req, res) => {
   });
 });
 
+
+
+// Add these debug endpoints to your server code
+
+// Debug endpoint to check environment configuration
+app.get('/api/debug/config', (req, res) => {
+  res.json({
+    LWA_CLIENT_ID: process.env.LWA_CLIENT_ID ? 'SET' : 'MISSING',
+    LWA_CLIENT_SECRET: process.env.LWA_CLIENT_SECRET ? 'SET' : 'MISSING',
+    CLIENT_ID_MATCH: process.env.LWA_CLIENT_ID === 'amzn1.application-oa2-client.88c157633a1947d68bf4f64ade8034be',
+    NODE_ENV: process.env.NODE_ENV,
+    RAILWAY_URL: process.env.RAILWAY_URL
+  });
+});
+
+// Debug endpoint to check token storage
+app.get('/api/debug/token-storage', (req, res) => {
+  const storageKey = 'alexa_main_tokens';
+  res.json({
+    accessToken: alexaUserSessions.get(storageKey) ? 'EXISTS' : 'MISSING',
+    refreshToken: alexaRefreshTokens.get(storageKey) ? 'EXISTS' : 'MISSING',
+    storageKey: storageKey,
+    alexaSessionsSize: alexaUserSessions.size,
+    alexaRefreshSize: alexaRefreshTokens.size
+  });
+});
+
+// Debug endpoint to test Amazon token validation
+app.get('/api/debug/test-amazon', async (req, res) => {
+  try {
+    const storageKey = 'alexa_main_tokens';
+    const token = alexaUserSessions.get(storageKey);
+    
+    if (!token) {
+      return res.json({ error: 'No token available' });
+    }
+    
+    // Test with Amazon directly
+    const response = await fetch(`https://api.amazon.com/auth/o2/tokeninfo?access_token=${token}`);
+    const data = await response.json();
+    
+    res.json({
+      amazonStatus: response.status,
+      amazonResponse: data,
+      tokenPreview: token.substring(0, 20) + '...'
+    });
+    
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
 // ===================== END ALEXA LOGIC =====================
 
 // [REST OF YOUR EXISTING CODE REMAINS UNCHANGED - IFTTT,
