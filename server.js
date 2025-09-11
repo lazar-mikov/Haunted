@@ -72,34 +72,35 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
   }
 });
 
-app.get('/api/alexa/verify-token', (req, res) => {
-  // First try to get token from query parameter
-  let token = req.query.token;
-  
-  // If not in query, try session (for backward compatibility)
-  if (!token) {
+// Server-side fix needed
+app.get('/api/alexa/verify-token', async (req, res) => {
+  try {
+    const token = req.query.token;
+    
+    // If you need session-based tokens
     const storageKey = 'alexa_main_tokens';
-    token = alexaUserSessions.get(storageKey);
-  }
-  
-  if (!token) {
-    return res.json({ valid: false, message: 'No token provided' });
-  }
-  
-  console.log('Verifying token:', token.substring(0, 20) + '...');
-  
-  // Verify token with Amazon API
-  verifyTokenWithAmazon(token).then(isValid => {
-    res.json({ 
-      valid: isValid, 
-      message: isValid ? 'Token is valid' : 'Token is invalid',
-      tokenSource: req.query.token ? 'query-parameter' : 'session'
+    const sessionToken = alexaUserSessions.get(storageKey);
+    
+    const tokenToVerify = token || sessionToken;
+    
+    if (!tokenToVerify) {
+      return res.json({ valid: false, message: 'No token available for verification' });
+    }
+    
+    // Verify with Amazon - this might be where it's crashing
+    const isValid = await verifyTokenWithAmazon(tokenToVerify);
+    
+    res.json({ valid: isValid, message: isValid ? 'Token valid' : 'Token invalid' });
+    
+  } catch (error) {
+    console.error('Verify token error:', error);
+    res.status(500).json({ 
+      valid: false, 
+      message: 'Internal server error during verification',
+      error: error.message 
     });
-  }).catch(error => {
-    res.json({ valid: false, message: 'Verification error: ' + error.message });
-  });
+  }
 });
-
 // ===================== ALEXA SMART HOME LOGIC =====================
 
 // Alexa Smart Home endpoint
