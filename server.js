@@ -72,35 +72,7 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
   }
 });
 
-// Server-side fix needed
-app.get('/api/alexa/verify-token', async (req, res) => {
-  try {
-    const token = req.query.token;
-    
-    // If you need session-based tokens
-    const storageKey = 'alexa_main_tokens';
-    const sessionToken = alexaUserSessions.get(storageKey);
-    
-    const tokenToVerify = token || sessionToken;
-    
-    if (!tokenToVerify) {
-      return res.json({ valid: false, message: 'No token available for verification' });
-    }
-    
-    // Verify with Amazon - this might be where it's crashing
-    const isValid = await verifyTokenWithAmazon(tokenToVerify);
-    
-    res.json({ valid: isValid, message: isValid ? 'Token valid' : 'Token invalid' });
-    
-  } catch (error) {
-    console.error('Verify token error:', error);
-    res.status(500).json({ 
-      valid: false, 
-      message: 'Internal server error during verification',
-      error: error.message 
-    });
-  }
-});
+
 // ===================== ALEXA SMART HOME LOGIC =====================
 
 // Alexa Smart Home endpoint
@@ -464,18 +436,40 @@ app.post('/api/alexa/trigger', async (req, res) => {
 // ===================== DEBUG ENDPOINTS =====================
 
 // Token verification endpoint
+// Replace ALL verify-token endpoints with this one
 app.get('/api/alexa/verify-token', async (req, res) => {
   try {
-    const accessToken = alexaUserSessions.get(req.sessionID);
+    console.log('🔍 Verify token endpoint called');
     
-    if (!accessToken) {
-      return res.json({ valid: false, message: 'No token found for this session' });
+    // Try to get token from query parameter first
+    let token = req.query.token;
+    console.log('Query token:', token ? 'Present' : 'Not present');
+    
+    // If no query token, try our fixed storage key
+    if (!token) {
+      const storageKey = 'alexa_main_tokens';
+      token = alexaUserSessions.get(storageKey);
+      console.log('Fixed key token:', token ? 'Present' : 'Not present');
     }
     
-    // Verify token with Amazon
-    const response = await fetch(`https://api.amazon.com/auth/o2/tokeninfo?access_token=${accessToken}`);
+    // If still no token, try session ID (for backward compatibility)
+    if (!token) {
+      token = alexaUserSessions.get(req.sessionID);
+      console.log('Session ID token:', token ? 'Present' : 'Not present');
+    }
+    
+    if (!token) {
+      console.log('❌ No token available for verification');
+      return res.json({ valid: false, message: 'No token available for verification' });
+    }
+    
+    console.log('✅ Token to verify (first 20 chars):', token.substring(0, 20));
+    
+    // Verify with Amazon
+    const response = await fetch(`https://api.amazon.com/auth/o2/tokeninfo?access_token=${token}`);
     
     if (!response.ok) {
+      console.log('❌ Amazon token validation failed:', response.status);
       return res.json({ 
         valid: false, 
         message: `Token validation failed: ${response.status}`,
@@ -484,25 +478,26 @@ app.get('/api/alexa/verify-token', async (req, res) => {
     }
     
     const tokenInfo = await response.json();
+    console.log('✅ Token validation successful');
     
     res.json({
       valid: true,
+      message: 'Token is valid',
       tokenInfo: {
         client_id: tokenInfo.aud,
         expires_in: tokenInfo.expires_in,
         scope: tokenInfo.scope,
         token_type: tokenInfo.token_type
       },
-      sessionId: req.sessionID,
-      tokenPreview: accessToken.substring(0, 10) + '...' + accessToken.substring(accessToken.length - 5)
+      tokenSource: req.query.token ? 'query-parameter' : 'fixed-storage-key'
     });
     
   } catch (error) {
-    console.error('Token verification error:', error.message);
-    res.json({
-      valid: false,
-      message: error.message,
-      error: 'Token verification failed'
+    console.error('💥 Token verification error:', error.message);
+    res.status(500).json({ 
+      valid: false, 
+      message: 'Internal server error during verification',
+      error: error.message 
     });
   }
 });
@@ -516,7 +511,7 @@ app.get('/api/alexa/status', (req, res) => {
   res.json({ 
     connected: !!accessToken,
     hasToken: !!accessToken,
-    token: accessToken, // ← ADD THIS LINE to return the actual token
+    token: accessToken, // This returns the actual token
     storageKey: storageKey
   });
 });
