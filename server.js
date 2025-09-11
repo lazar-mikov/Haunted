@@ -376,6 +376,7 @@ app.post('/api/alexa/disconnect', (req, res) => {
 });
 
 // Alexa trigger endpoint
+// Alexa trigger endpoint - UPDATED to return proper JSON
 app.post('/api/alexa/trigger', async (req, res) => {
   try {
     const { effect } = req.body;
@@ -426,15 +427,31 @@ app.post('/api/alexa/trigger', async (req, res) => {
     });
     
     if (!alexaResponse.ok) {
-      throw new Error(`Alexa API error: ${alexaResponse.status}`);
+      const errorText = await alexaResponse.text();
+      throw new Error(`Alexa API error: ${alexaResponse.status} - ${errorText}`);
     }
     
+    const responseData = await alexaResponse.json();
     console.log('✅ Alexa trigger successful for:', effect);
-    res.json({ success: true, message: `Triggered ${effect} via Alexa` });
+    
+    // RETURN PROPER JSON RESPONSE
+    res.json({ 
+      success: true, 
+      message: `Triggered ${effect} via Alexa`,
+      effect: effect,
+      endpointId: endpointId,
+      alexaResponse: responseData
+    });
     
   } catch (error) {
     console.error('❌ Alexa trigger error:', error.message);
-    res.json({ success: false, message: error.message });
+    
+    // RETURN PROPER JSON ERROR RESPONSE
+    res.json({ 
+      success: false, 
+      message: error.message,
+      effect: req.body.effect
+    });
   }
 });
 
