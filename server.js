@@ -37,6 +37,41 @@ app.use(session({
 // Serve static frontend
 app.use(express.static("public"));
 
+// Add this to your server.js for handling grants
+app.post('/api/alexa/handle-grant', async (req, res) => {
+  try {
+    const { grantCode } = req.body;
+    console.log('🔐 Handling grant code:', grantCode);
+    
+    // Exchange grant code for tokens
+    const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', {
+      grant_type: 'authorization_code',
+      code: grantCode,
+      client_id: process.env.LWA_CLIENT_ID,
+      client_secret: process.env.LWA_CLIENT_SECRET,
+      redirect_uri: 'https://haunted-production.up.railway.app/auth/alexa/callback'
+    }, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    });
+    
+    const tokens = tokenResponse.data;
+    console.log('✅ Grant exchange successful');
+    
+    // Store tokens (you'll need to associate with user/skill)
+    const storageKey = 'alexa_grant_tokens';
+    alexaUserSessions.set(storageKey, tokens.access_token);
+    alexaRefreshTokens.set(storageKey, tokens.refresh_token);
+    
+    res.json({ success: true, message: 'Grant handled successfully' });
+    
+  } catch (error) {
+    console.error('Grant handling failed:', error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // ===================== ALEXA SMART HOME LOGIC =====================
 
 // Alexa Smart Home endpoint
