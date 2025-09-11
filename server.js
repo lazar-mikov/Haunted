@@ -299,13 +299,22 @@ app.get('/auth/alexa/callback', async (req, res) => {
   }
 });
 
-// Alexa trigger endpoint - SIMPLIFIED
+// Alexa trigger endpoint - use fixed key
 app.post('/api/alexa/trigger', async (req, res) => {
   try {
     const { effect } = req.body;
-    const accessToken = alexaUserSessions.get(req.sessionID);
+    const storageKey = 'alexa_main_tokens';
+    const accessToken = alexaUserSessions.get(storageKey);
+    
+    console.log('🔌 Trigger request:', {
+      effect: effect,
+      hasToken: !!accessToken,
+      storageKey: storageKey,
+      tokenLength: accessToken ? accessToken.length : 0
+    });
     
     if (!accessToken) {
+      console.log('❌ No token found for key:', storageKey);
       return res.json({ success: false, message: 'No Alexa connection found. Please reconnect.' });
     }
     
@@ -321,7 +330,8 @@ app.post('/api/alexa/trigger', async (req, res) => {
       return res.json({ success: false, message: 'Invalid effect' });
     }
     
-    // Try the API call directly
+    console.log('🚀 Calling Alexa API with token:', accessToken.substring(0, 20) + '...');
+    
     const alexaResponse = await fetch('https://api.eu.amazonalexa.com/v3/events', {
       method: 'POST',
       headers: {
@@ -344,22 +354,28 @@ app.post('/api/alexa/trigger', async (req, res) => {
       })
     });
     
+    console.log('📡 Alexa API response status:', alexaResponse.status);
+    
     if (alexaResponse.status === 401) {
+      const errorText = await alexaResponse.text();
+      console.log('🔐 Token expired response:', errorText);
       return res.json({ success: false, message: 'Token expired. Please reconnect Alexa.' });
     }
     
     if (!alexaResponse.ok) {
+      const errorText = await alexaResponse.text();
+      console.log('❌ Alexa API error:', alexaResponse.status, errorText);
       throw new Error(`Alexa API error: ${alexaResponse.status}`);
     }
     
+    console.log('✅ Alexa trigger successful for:', effect);
     res.json({ success: true, message: `Triggered ${effect}` });
     
   } catch (error) {
-    console.error('Trigger error:', error.message);
+    console.error('💥 Trigger error:', error.message);
     res.json({ success: false, message: error.message });
   }
 });
-
 // ===================== DEBUG ENDPOINTS =====================
 
 // Token verification endpoint
