@@ -375,85 +375,190 @@ app.post('/api/alexa/disconnect', (req, res) => {
   res.json({ success: true, message: 'Alexa disconnected' });
 });
 
+// Add token refresh function
+async function refreshAlexaToken(refreshToken) {
+  try {
+    const response = await axios.post('https://api.amazon.com/auth/o2/token', {
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: process.env.LWA_CLIENT_ID,
+      client_secret: process.env.LWA_CLIENT_SECRET
+    }, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('Token refresh failed:', error.message);
+    throw error;
+  }
+}
+
 // Alexa trigger endpoint
 // Alexa trigger endpoint - UPDATED to return proper JSON
+// UPDATE: /api/alexa/trigger with retry + (optional) token refresh
+// NOTE: Keeps your existing behavior, just wraps it with a helper and
+// adds a refresh path if you have a stored refresh token.
+
 app.post('/api/alexa/trigger', async (req, res) => {
   try {
     const { effect } = req.body;
-    console.log('🔌 Alexa trigger requested:', effect);
-    
-    // Get access token from session
-    const accessToken = alexaUserSessions.get(req.sessionID);
-    
+    let accessToken = alexaUserSessions.get(req.sessionID);
+
     if (!accessToken) {
       return res.json({ success: false, message: 'No Alexa connection found' });
     }
-    
-    const endpointMap = {
-      'blackout': 'haunted-blackout',
-      'flash_red': 'haunted-flash-red', 
-      'plug_on': 'haunted-plug-on',
-      'reset': 'haunted-reset'
-    };
-    
-    const endpointId = endpointMap[effect];
-    if (!endpointId) {
-      return res.json({ success: false, message: 'Invalid effect' });
-    }
-    
-    console.log('🚀 Triggering Alexa effect:', effect, '->', endpointId);
-    
-    // Call Alexa Smart Home API
-    const alexaResponse = await fetch('https://api.eu.amazonalexa.com/v3/events', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        event: {
-          header: {
-            namespace: "Alexa.SceneController",
-            name: "Activate",
-            messageId: Math.random().toString(36).substring(2) + Date.now().toString(36),
-            payloadVersion: "3"
-          },
-          endpoint: {
-            endpointId: endpointId
-          },
-          payload: {}
+
+    try {
+      const result = await triggerAlexaEffect(accessToken, effect);
+      return res.json({ success: true, ...result });
+    } catch (error) {
+      // If token expired/invalid, try to refresh (if you store refresh tokens)
+      const msg = String(error.message || error);
+      if (msg.includes('401') || msg.toLowerCase().includes('token')) {
+        console.log('🔄 Token may be expired, attempting refresh...');
+        try {
+          // You must store refresh tokens at account link callback:
+          // alexaRefreshTokens.set(req.sessionID, tokens.refresh_token);
+          accessToken = await refreshAlexaToken(req.sessionID);
+          const result = await triggerAlexaEffect(accessToken, effect);
+          return res.json({ success: true, ...result, refreshed: true });
+        } catch (refreshErr) {
+          console.error('❌ Token refresh failed:', refreshErr);
+          return res.json({
+            success: false,
+            message: 'Token expired. Please reconnect Alexa.'
+          });
         }
-      })
-    });
-    
-    if (!alexaResponse.ok) {
-      const errorText = await alexaResponse.text();
-      throw new Error(`Alexa API error: ${alexaResponse.status} - ${errorText}`);
+      }
+      throw error;
     }
-    
-    const responseData = await alexaResponse.json();
-    console.log('✅ Alexa trigger successful for:', effect);
-    
-    // RETURN PROPER JSON RESPONSE
-    res.json({ 
-      success: true, 
-      message: `Triggered ${effect} via Alexa`,
-      effect: effect,
-      endpointId: endpointId,
-      alexaResponse: responseData
-    });
-    
   } catch (error) {
-    console.error('❌ Alexa trigger error:', error.message);
-    
-    // RETURN PROPER JSON ERROR RESPONSE
-    res.json({ 
-      success: false, 
-      message: error.message,
-      effect: req.body.effect
-    });
+    console.error('Trigger error:', error.message || error);
+    res.json({ success: false, message: String(error.message || error) });
   }
 });
+
+/**
+ * Helper: actually perform your existing Alexa call.
+ * Keeps your endpoint map and request format intact.
+ */
+async function triggerAlexaEffect(accessToken, effect) {
+  console.log('🔌 Alexa trigger requested:', effect);
+
+  const endpointMap = {
+    blackout: 'haunted-blackout',
+    flash_red: 'haunted-flash-red',
+    plug_on: 'haunted-plug-on',
+    reset: 'haunted-reset'
+  };
+
+  const endpointId = endpointMap[effect];
+  if (!endpointId) {
+    throw new Error('Invalid effect');
+  }
+
+  console.log('🚀 Triggering Alexa effect:', effect, '->', endpointId);
+
+  const alexaResponse = await fetch('https://api.eu.amazonalexa.com/v3/events', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      event: {
+        header: {
+          namespace: 'Alexa.SceneController',
+          name: 'Activate',
+          messageId:
+            (globalThis.crypto?.randomUUID?.() ??
+              Math.random().toString(36).slice(2)) + Date.now().toString(36),
+          payloadVersion: '3'
+        },
+        endpoint: { endpointId },
+        payload: {}
+      }
+    })
+  });
+
+  if (!alexaResponse.ok) {
+    const errorText = await alexaResponse.text();
+    throw new Error(`Alexa API error: ${alexaResponse.status} - ${errorText}`);
+  }
+
+  let responseData = {};
+  try {
+    responseData = await alexaResponse.json();
+  } catch {
+    // Some Alexa endpoints respond with no JSON body; ignore parse errors.
+  }
+
+  console.log('✅ Alexa trigger successful for:', effect);
+  return {
+    message: `Triggered ${effect} via Alexa`,
+    effect,
+    endpointId,
+    alexaResponse: responseData
+  };
+}
+
+/**
+ * Helper: refresh the user access token via LWA refresh_token (if available).
+ * Requires you to have saved the refresh token at account linking time.
+ * Expects:
+ *   - alexaRefreshTokens.get(sessionID) => refresh_token
+ *   - process.env.LWA_CLIENT_ID / process.env.LWA_CLIENT_SECRET set
+ * Updates:
+ *   - alexaUserSessions.set(sessionID, new_access_token)
+ *   - alexaRefreshTokens.set(sessionID, new_refresh_token?) if returned
+ */
+async function refreshAlexaToken(sessionID) {
+  const refreshToken = alexaRefreshTokens?.get?.(sessionID);
+  if (!refreshToken) {
+    throw new Error('No refresh token available');
+  }
+
+  const clientId = process.env.LWA_CLIENT_ID;
+  const clientSecret = process.env.LWA_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error('Missing LWA client credentials');
+  }
+
+  const body = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+    client_id: String(clientId),
+    client_secret: String(clientSecret)
+  });
+
+  const r = await fetch('https://api.amazon.com/auth/o2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body
+  });
+
+  if (!r.ok) {
+    const text = await r.text();
+    throw new Error(`Refresh token request failed: ${r.status} - ${text}`);
+  }
+
+  const tokens = await r.json();
+  if (!tokens.access_token) {
+    throw new Error('No access token in refresh response');
+  }
+
+  // Persist the new tokens
+  alexaUserSessions.set(sessionID, tokens.access_token);
+  if (tokens.refresh_token) {
+    // Sometimes LWA returns a new refresh_token; store it if present.
+    alexaRefreshTokens.set(sessionID, tokens.refresh_token);
+  }
+
+  console.log('🔐 Access token refreshed for session:', sessionID);
+  return tokens.access_token;
+}
+
 
 // ===================== END ALEXA LOGIC =====================
 
