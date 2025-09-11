@@ -467,30 +467,38 @@ async function validateAlexaAccessToken(token) {
 app.get('/auth/alexa', (req, res) => {
   const { client_id, redirect_uri, state } = req.query;
   console.log('🔍 /auth/alexa called:', { client_id, redirect_uri, state });
-  
-  // Store the state in session WITH SAVE CALLBACK
+
+  // Store the state in session WITH SAVE CALLBACK (kept)
   req.session.authState = state;
   req.session.authRedirectUri = redirect_uri;
-  
-  // Save the session before redirecting
+
+  // Save the session before redirecting (kept)
   req.session.save((err) => {
     if (err) {
       console.error('❌ Session save error:', err);
       return res.status(500).send('Session error');
     }
-    
+
     // Redirect to Amazon's OAuth endpoint
     const amazonAuthUrl = new URL('https://www.amazon.com/ap/oa');
     amazonAuthUrl.searchParams.set('client_id', process.env.LWA_CLIENT_ID);
-    amazonAuthUrl.searchParams.set('scope', 'profile');
+
+    // ✅ UPDATED: include Smart Home account linking scope (kept 'profile')
+    // NOTE: space-separated scopes per Amazon OAuth
+    amazonAuthUrl.searchParams.set('scope', 'alexa::skills:account_linking profile');
+
     amazonAuthUrl.searchParams.set('response_type', 'code');
-    amazonAuthUrl.searchParams.set('redirect_uri', `${process.env.RAILWAY_URL || 'https://haunted-production.up.railway.app'}/auth/alexa/callback`);
+    amazonAuthUrl.searchParams.set(
+      'redirect_uri',
+      `${process.env.RAILWAY_URL || 'https://haunted-production.up.railway.app'}/auth/alexa/callback`
+    );
     amazonAuthUrl.searchParams.set('state', state);
-    
+
     console.log('🔍 Redirecting to:', amazonAuthUrl.toString());
     res.redirect(amazonAuthUrl.toString());
   });
 });
+
 
 app.get('/auth/alexa/callback', async (req, res) => {
   // 🧭 Extra session diagnostics (added)
