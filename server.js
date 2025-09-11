@@ -375,6 +375,69 @@ app.post('/api/alexa/disconnect', (req, res) => {
   res.json({ success: true, message: 'Alexa disconnected' });
 });
 
+// Alexa trigger endpoint
+app.post('/api/alexa/trigger', async (req, res) => {
+  try {
+    const { effect } = req.body;
+    console.log('🔌 Alexa trigger requested:', effect);
+    
+    // Get access token from session
+    const accessToken = alexaUserSessions.get(req.sessionID);
+    
+    if (!accessToken) {
+      return res.json({ success: false, message: 'No Alexa connection found' });
+    }
+    
+    const endpointMap = {
+      'blackout': 'haunted-blackout',
+      'flash_red': 'haunted-flash-red', 
+      'plug_on': 'haunted-plug-on',
+      'reset': 'haunted-reset'
+    };
+    
+    const endpointId = endpointMap[effect];
+    if (!endpointId) {
+      return res.json({ success: false, message: 'Invalid effect' });
+    }
+    
+    console.log('🚀 Triggering Alexa effect:', effect, '->', endpointId);
+    
+    // Call Alexa Smart Home API
+    const alexaResponse = await fetch('https://api.eu.amazonalexa.com/v3/events', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        event: {
+          header: {
+            namespace: "Alexa.SceneController",
+            name: "Activate",
+            messageId: Math.random().toString(36).substring(2) + Date.now().toString(36),
+            payloadVersion: "3"
+          },
+          endpoint: {
+            endpointId: endpointId
+          },
+          payload: {}
+        }
+      })
+    });
+    
+    if (!alexaResponse.ok) {
+      throw new Error(`Alexa API error: ${alexaResponse.status}`);
+    }
+    
+    console.log('✅ Alexa trigger successful for:', effect);
+    res.json({ success: true, message: `Triggered ${effect} via Alexa` });
+    
+  } catch (error) {
+    console.error('❌ Alexa trigger error:', error.message);
+    res.json({ success: false, message: error.message });
+  }
+});
+
 // ===================== END ALEXA LOGIC =====================
 
 /** ---------- [ADDED] Optional /watch page helper (serves watch.html if present) ---------- */
