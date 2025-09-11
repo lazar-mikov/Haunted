@@ -502,28 +502,7 @@ app.post('/api/alexa/transfer-session', (req, res) => {
   });
 });
 
-// Get all sessions (temporary debug)
-fetch('/api/debug/all-sessions', {
-  credentials: 'include'
-})
-.then(r => r.json())
-.then(data => {
-  console.log('All sessions:', data);
-  // If we find a session with tokens, use it
-  const sessionWithToken = data.sessions.find(s => s.hasToken);
-  if (sessionWithToken) {
-    console.log('Found session with token:', sessionWithToken.sessionId);
-    // Transfer tokens to current session
-    fetch('/api/alexa/transfer-session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ callbackSessionId: sessionWithToken.sessionId })
-    })
-    .then(r => r.json())
-    .then(result => console.log('Transfer result:', result));
-  }
-});
+
 
 // ===================== END ALEXA LOGIC =====================
 
