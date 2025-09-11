@@ -619,6 +619,32 @@ app.post('/api/alexa/transfer-session', (req, res) => {
   });
 });
 
+// Add this endpoint to clear all Alexa tokens
+app.post('/api/alexa/clear-tokens', (req, res) => {
+  try {
+    console.log('🧹 Clearing all Alexa tokens...');
+    
+    // Clear all stored tokens
+    alexaUserSessions.clear();
+    alexaRefreshTokens.clear();
+    
+    console.log('✅ All tokens cleared');
+    res.json({ 
+      success: true, 
+      message: 'All Alexa tokens cleared successfully',
+      sessionsCleared: alexaUserSessions.size,
+      refreshTokensCleared: alexaRefreshTokens.size
+    });
+    
+  } catch (error) {
+    console.error('Error clearing tokens:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error clearing tokens: ' + error.message 
+    });
+  }
+});
+
 // Add this function to your server
 
 // Add these debug endpoints to your server code
