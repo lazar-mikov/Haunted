@@ -39,47 +39,6 @@ async function refreshAlexaToken(sessionID) {
 // ===================== DEBUG ENDPOINTS =====================
 
 // Token verification endpoint
-app.get('/api/alexa/verify-token', async (req, res) => {
-  try {
-    const accessToken = alexaUserSessions.get(req.sessionID);
-    
-    if (!accessToken) {
-      return res.json({ valid: false, message: 'No token found for this session' });
-    }
-    
-    // Verify token with Amazon
-    const response = await fetch(`https://api.amazon.com/auth/o2/tokeninfo?access_token=${accessToken}`);
-    
-    if (!response.ok) {
-      return res.json({ 
-        valid: false, 
-        message: `Token validation failed: ${response.status}`,
-        status: response.status
-      });
-    }
-    
-    const tokenInfo = await response.json();
-    
-    res.json({
-      valid: true,
-      tokenInfo: {
-        client_id: tokenInfo.aud,
-        expires_in: tokenInfo.expires_in,
-        scope: tokenInfo.scope,
-        token_type: tokenInfo.token_type
-      },
-      sessionId: req.sessionID,
-      tokenPreview: accessToken.substring(0, 10) + '...' + accessToken.substring(accessToken.length - 5)
-    });
-    
-  } catch (error) {
-    res.json({
-      valid: false,
-      message: error.message,
-      error: 'Token verification failed'
-    });
-  }
-});
 
 
 
@@ -214,6 +173,85 @@ app.get('/api/alexa/status', (req, res) => {
     sessionId: req.sessionID,
     hasToken: !!accessToken
   });
+});
+
+// Token verification endpoint
+app.get('/api/alexa/verify-token', async (req, res) => {
+  try {
+    const accessToken = alexaUserSessions.get(req.sessionID);
+    
+    if (!accessToken) {
+      return res.json({ valid: false, message: 'No token found for this session' });
+    }
+    
+    console.log('🔍 Verifying token:', accessToken.substring(0, 20) + '...');
+    
+    // Verify token with Amazon
+    const response = await fetch(`https://api.amazon.com/auth/o2/tokeninfo?access_token=${accessToken}`);
+    
+    if (!response.ok) {
+      return res.json({ 
+        valid: false, 
+        message: `Token validation failed: ${response.status}`,
+        status: response.status
+      });
+    }
+    
+    const tokenInfo = await response.json();
+    
+    res.json({
+      valid: true,
+      tokenInfo: {
+        client_id: tokenInfo.aud,
+        expires_in: tokenInfo.expires_in,
+        scope: tokenInfo.scope,
+        token_type: tokenInfo.token_type
+      },
+      sessionId: req.sessionID,
+      tokenPreview: accessToken.substring(0, 10) + '...' + accessToken.substring(accessToken.length - 5)
+    });
+    
+  } catch (error) {
+    console.error('Token verification error:', error.message);
+    res.json({
+      valid: false,
+      message: error.message,
+      error: 'Token verification failed'
+    });
+  }
+});
+
+// Test direct Alexa API call
+app.get('/api/alexa/test-direct', async (req, res) => {
+  try {
+    const accessToken = alexaUserSessions.get(req.sessionID);
+    
+    if (!accessToken) {
+      return res.json({ success: false, message: 'No access token' });
+    }
+    
+    // Test with a simple Alexa API call
+    const response = await fetch('https://api.eu.amazonalexa.com/v1/devices', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.status === 401) {
+      return res.json({ 
+        success: false, 
+        message: 'Token invalid or expired',
+        status: 401
+      });
+    }
+    
+    const data = await response.json();
+    res.json({ success: true, data: data });
+    
+  } catch (error) {
+    res.json({ success: false, message: error.message });
+  }
 });
 
 
