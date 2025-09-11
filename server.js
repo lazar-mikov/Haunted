@@ -73,6 +73,8 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
 });
 
 
+
+
 // Add this function to your server
 async function refreshAlexaToken() {
   try {
@@ -452,6 +454,18 @@ async function triggerAlexaEffect(accessToken, effect) {
   return { success: true, message: `Triggered ${effect}` };
 }
 // ===================== DEBUG ENDPOINTS =====================
+
+// Add this refresh endpoint - THIS IS WHAT'S MISSING
+app.post('/api/alexa/refresh-token', async (req, res) => {
+  try {
+    console.log('🔄 Manual refresh requested');
+    const newToken = await refreshAlexaToken();
+    res.json({ success: true, message: 'Token refreshed', token: newToken });
+  } catch (error) {
+    console.error('❌ Manual refresh failed:', error.message);
+    res.json({ success: false, message: error.message });
+  }
+});
 
 // Token verification endpoint
 // Replace ALL verify-token endpoints with this one
