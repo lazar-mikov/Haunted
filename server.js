@@ -17,6 +17,27 @@ let authCodes = new Map();
 // Alexa token storage
 const alexaUserSessions = new Map(); // sessionId -> accessToken
 
+
+
+async function refreshAlexaToken(refreshToken) {
+  try {
+    const response = await axios.post('https://api.amazon.com/auth/o2/token', {
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: process.env.LWA_CLIENT_ID,
+      client_secret: process.env.LWA_CLIENT_SECRET
+    }, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('Token refresh failed:', error.message);
+    throw error;
+  }
+}
+
+
 /** [ADDED] parse urlencoded too (IFTTT & some tools send form bodies) */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // <— ADDED
@@ -376,23 +397,7 @@ app.post('/api/alexa/disconnect', (req, res) => {
 });
 
 // Add token refresh function
-async function refreshAlexaToken(refreshToken) {
-  try {
-    const response = await axios.post('https://api.amazon.com/auth/o2/token', {
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-      client_id: process.env.LWA_CLIENT_ID,
-      client_secret: process.env.LWA_CLIENT_SECRET
-    }, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-    });
-    
-    return response.data;
-  } catch (error) {
-    console.error('Token refresh failed:', error.message);
-    throw error;
-  }
-}
+
 
 // Alexa trigger endpoint
 // Alexa trigger endpoint - UPDATED to return proper JSON
