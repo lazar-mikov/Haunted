@@ -607,6 +607,42 @@ app.post('/api/alexa/transfer-session', (req, res) => {
 
 // Add this function to your server
 
+// Add these debug endpoints to your server code
+
+// Debug endpoint to check refresh token status
+app.get('/api/debug/refresh-status', (req, res) => {
+  const storageKey = 'alexa_main_tokens';
+  const refreshToken = alexaRefreshTokens.get(storageKey);
+  
+  res.json({
+    hasRefreshToken: !!refreshToken,
+    refreshTokenLength: refreshToken ? refreshToken.length : 0,
+    refreshTokenPreview: refreshToken ? `${refreshToken.substring(0, 10)}...${refreshToken.substring(refreshToken.length - 5)}` : null,
+    storageKey: storageKey
+  });
+});
+
+// Debug endpoint to check both tokens
+app.get('/api/debug/token-status', (req, res) => {
+  const storageKey = 'alexa_main_tokens';
+  const accessToken = alexaUserSessions.get(storageKey);
+  const refreshToken = alexaRefreshTokens.get(storageKey);
+  
+  res.json({
+    accessToken: {
+      exists: !!accessToken,
+      length: accessToken ? accessToken.length : 0,
+      preview: accessToken ? `${accessToken.substring(0, 10)}...` : null
+    },
+    refreshToken: {
+      exists: !!refreshToken,
+      length: refreshToken ? refreshToken.length : 0,
+      preview: refreshToken ? `${refreshToken.substring(0, 10)}...` : null
+    },
+    storageKey: storageKey
+  });
+});
+
 // ===================== END ALEXA LOGIC =====================
 
 // [REST OF YOUR EXISTING CODE REMAINS UNCHANGED - IFTTT,
