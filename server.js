@@ -299,22 +299,17 @@ app.get('/auth/alexa/callback', async (req, res) => {
   }
 });
 
-// Alexa trigger endpoint - use fixed key
 app.post('/api/alexa/trigger', async (req, res) => {
   try {
     const { effect } = req.body;
     const storageKey = 'alexa_main_tokens';
     const accessToken = alexaUserSessions.get(storageKey);
     
-    console.log('🔌 Trigger request:', {
-      effect: effect,
-      hasToken: !!accessToken,
-      storageKey: storageKey,
-      tokenLength: accessToken ? accessToken.length : 0
-    });
+    console.log('🔌 Trigger request received for effect:', effect);
+    console.log('🔑 Access token available:', !!accessToken);
     
     if (!accessToken) {
-      console.log('❌ No token found for key:', storageKey);
+      console.log('❌ No access token found');
       return res.json({ success: false, message: 'No Alexa connection found. Please reconnect.' });
     }
     
@@ -327,11 +322,26 @@ app.post('/api/alexa/trigger', async (req, res) => {
     
     const endpointId = endpointMap[effect];
     if (!endpointId) {
+      console.log('❌ Invalid effect:', effect);
       return res.json({ success: false, message: 'Invalid effect' });
     }
     
-    console.log('🚀 Calling Alexa API with token:', accessToken.substring(0, 20) + '...');
+    console.log('🚀 Calling Alexa API with endpoint:', endpointId);
+    console.log('🔐 Token preview:', accessToken.substring(0, 20) + '...');
     
+    // Test the token validity first
+    try {
+      const tokenCheck = await fetch(`https://api.amazon.com/auth/o2/tokeninfo?access_token=${accessToken}`);
+      console.log('🔍 Token check status:', tokenCheck.status);
+      if (!tokenCheck.ok) {
+        const errorText = await tokenCheck.text();
+        console.log('❌ Token validation failed:', errorText);
+      }
+    } catch (tokenError) {
+      console.log('🔍 Token check error:', tokenError.message);
+    }
+    
+    // Now call Alexa API
     const alexaResponse = await fetch('https://api.eu.amazonalexa.com/v3/events', {
       method: 'POST',
       headers: {
@@ -355,27 +365,38 @@ app.post('/api/alexa/trigger', async (req, res) => {
     });
     
     console.log('📡 Alexa API response status:', alexaResponse.status);
+    console.log('📡 Alexa API response headers:', Object.fromEntries(alexaResponse.headers.entries()));
+    
+    const responseText = await alexaResponse.text();
+    console.log('📡 Alexa API response body:', responseText);
     
     if (alexaResponse.status === 401) {
-      const errorText = await alexaResponse.text();
-      console.log('🔐 Token expired response:', errorText);
+      console.log('🔐 Token expired or invalid');
       return res.json({ success: false, message: 'Token expired. Please reconnect Alexa.' });
     }
     
     if (!alexaResponse.ok) {
-      const errorText = await alexaResponse.text();
-      console.log('❌ Alexa API error:', alexaResponse.status, errorText);
-      throw new Error(`Alexa API error: ${alexaResponse.status}`);
+      console.log('❌ Alexa API error:', alexaResponse.status);
+      throw new Error(`Alexa API error: ${alexaResponse.status} - ${responseText}`);
     }
     
-    console.log('✅ Alexa trigger successful for:', effect);
-    res.json({ success: true, message: `Triggered ${effect}` });
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (e) {
+      responseData = { raw: responseText };
+    }
+    
+    console.log('✅ Alexa trigger successful');
+    res.json({ success: true, message: `Triggered ${effect}`, response: responseData });
     
   } catch (error) {
     console.error('💥 Trigger error:', error.message);
+    console.error('💥 Error stack:', error.stack);
     res.json({ success: false, message: error.message });
   }
 });
+
 // ===================== DEBUG ENDPOINTS =====================
 
 // Token verification endpoint
