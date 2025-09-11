@@ -19,22 +19,60 @@ const alexaUserSessions = new Map(); // sessionId -> accessToken
 
 
 
-async function refreshAlexaToken(refreshToken) {
-  try {
-    const response = await axios.post('https://api.amazon.com/auth/o2/token', {
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-      client_id: process.env.LWA_CLIENT_ID,
-      client_secret: process.env.LWA_CLIENT_SECRET
-    }, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-    });
-    
-    return response.data;
-  } catch (error) {
-    console.error('Token refresh failed:', error.message);
-    throw error;
+/**
+ * Helper: refresh the user access token via LWA refresh_token (if available).
+ * Requires you to have saved the refresh token at account linking time.
+ * Expects:
+ *   - alexaRefreshTokens.get(sessionID) => refresh_token
+ *   - process.env.LWA_CLIENT_ID / process.env.LWA_CLIENT_SECRET set
+ * Updates:
+ *   - alexaUserSessions.set(sessionID, new_access_token)
+ *   - alexaRefreshTokens.set(sessionID, new_refresh_token?) if returned
+ */
+async function refreshAlexaToken(sessionID) {
+  const refreshToken = alexaRefreshTokens?.get?.(sessionID);
+  if (!refreshToken) {
+    throw new Error('No refresh token available');
   }
+
+  const clientId = process.env.LWA_CLIENT_ID;
+  const clientSecret = process.env.LWA_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error('Missing LWA client credentials');
+  }
+
+  const body = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+    client_id: String(clientId),
+    client_secret: String(clientSecret)
+  });
+
+  const r = await fetch('https://api.amazon.com/auth/o2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body
+  });
+
+  if (!r.ok) {
+    const text = await r.text();
+    throw new Error(`Refresh token request failed: ${r.status} - ${text}`);
+  }
+
+  const tokens = await r.json();
+  if (!tokens.access_token) {
+    throw new Error('No access token in refresh response');
+  }
+
+  // Persist the new tokens
+  alexaUserSessions.set(sessionID, tokens.access_token);
+  if (tokens.refresh_token) {
+    // Sometimes LWA returns a new refresh_token; store it if present.
+    alexaRefreshTokens.set(sessionID, tokens.refresh_token);
+  }
+
+  console.log('🔐 Access token refreshed for session:', sessionID);
+  return tokens.access_token;
 }
 
 
@@ -508,61 +546,7 @@ async function triggerAlexaEffect(accessToken, effect) {
   };
 }
 
-/**
- * Helper: refresh the user access token via LWA refresh_token (if available).
- * Requires you to have saved the refresh token at account linking time.
- * Expects:
- *   - alexaRefreshTokens.get(sessionID) => refresh_token
- *   - process.env.LWA_CLIENT_ID / process.env.LWA_CLIENT_SECRET set
- * Updates:
- *   - alexaUserSessions.set(sessionID, new_access_token)
- *   - alexaRefreshTokens.set(sessionID, new_refresh_token?) if returned
- */
-async function refreshAlexaToken(sessionID) {
-  const refreshToken = alexaRefreshTokens?.get?.(sessionID);
-  if (!refreshToken) {
-    throw new Error('No refresh token available');
-  }
 
-  const clientId = process.env.LWA_CLIENT_ID;
-  const clientSecret = process.env.LWA_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    throw new Error('Missing LWA client credentials');
-  }
-
-  const body = new URLSearchParams({
-    grant_type: 'refresh_token',
-    refresh_token: refreshToken,
-    client_id: String(clientId),
-    client_secret: String(clientSecret)
-  });
-
-  const r = await fetch('https://api.amazon.com/auth/o2/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body
-  });
-
-  if (!r.ok) {
-    const text = await r.text();
-    throw new Error(`Refresh token request failed: ${r.status} - ${text}`);
-  }
-
-  const tokens = await r.json();
-  if (!tokens.access_token) {
-    throw new Error('No access token in refresh response');
-  }
-
-  // Persist the new tokens
-  alexaUserSessions.set(sessionID, tokens.access_token);
-  if (tokens.refresh_token) {
-    // Sometimes LWA returns a new refresh_token; store it if present.
-    alexaRefreshTokens.set(sessionID, tokens.refresh_token);
-  }
-
-  console.log('🔐 Access token refreshed for session:', sessionID);
-  return tokens.access_token;
-}
 
 
 // ===================== END ALEXA LOGIC =====================
