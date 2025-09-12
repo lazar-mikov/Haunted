@@ -692,7 +692,7 @@ app.get('/api/debug/config', (req, res) => {
   res.json({
     LWA_CLIENT_ID: process.env.LWA_CLIENT_ID ? 'SET' : 'MISSING',
     LWA_CLIENT_SECRET: process.env.LWA_CLIENT_SECRET ? 'SET' : 'MISSING',
-    CLIENT_ID_MATCH: process.env.LWA_CLIENT_ID === 'amzn1.application-oa2-client.88c157633a1947d68bf4f64ade8034be',
+    CLIENT_ID_MATCH: process.env.LWA_CLIENT_ID === 'amzn1.application-oa2-client.f9243e52c93a47ac9c91ef9b89e7ac60',
     NODE_ENV: process.env.NODE_ENV,
     RAILWAY_URL: process.env.RAILWAY_URL
   });
