@@ -412,6 +412,43 @@ app.get('/api/alexa/status', (req, res) => {
 });
 
 
+// Add this endpoint to test Alexa API connectivity
+app.get('/api/test-alexa-connection', async (req, res) => {
+  try {
+    const storageKey = 'alexa_main_tokens';
+    const accessToken = alexaUserSessions.get(storageKey);
+    
+    if (!accessToken) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'No access token found. Please connect to Alexa first.' 
+      });
+    }
+    
+    // Test the devices API
+    console.log('Testing Alexa devices API...');
+    const devicesResponse = await axios.get('https://api.amazonalexa.com/v1/devices', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      },
+      timeout: 10000
+    });
+    
+    res.json({
+      success: true,
+      message: 'Alexa API connection successful!',
+      devicesCount: devicesResponse.data.devices ? devicesResponse.data.devices.length : 0
+    });
+  } catch (error) {
+    console.error('Alexa API test failed:', error.response?.data || error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Alexa API test failed',
+      error: error.response?.data || error.message
+    });
+  }
+});
+
 // New endpoint to setup routines automatically
 app.post('/api/setup-routines', async (req, res) => {
   try {
