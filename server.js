@@ -388,6 +388,30 @@ app.post('/api/trigger-direct', (req, res) => {
   res.json({ success: true, message: `Direct trigger: ${effect}`, effect: effect });
 });
 
+// Add this endpoint to check Alexa connection status
+app.get('/api/alexa/status', (req, res) => {
+  try {
+    const storageKey = 'alexa_main_tokens';
+    const accessToken = alexaUserSessions.get(storageKey);
+    const refreshToken = alexaRefreshTokens.get(storageKey);
+    
+    const isConnected = !!(accessToken && refreshToken);
+    
+    res.json({
+      connected: isConnected,
+      hasAccessToken: !!accessToken,
+      hasRefreshToken: !!refreshToken
+    });
+  } catch (error) {
+    console.error('Error checking Alexa status:', error);
+    res.status(500).json({ 
+      connected: false,
+      error: 'Failed to check connection status'
+    });
+  }
+});
+
+
 // New endpoint to setup routines automatically
 app.post('/api/setup-routines', async (req, res) => {
   try {
