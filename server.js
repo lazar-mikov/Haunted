@@ -5,6 +5,8 @@ import dotenv from "dotenv";
 import crypto from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
+import { Client } from 'tplink-smarthome-api';
+
 
 dotenv.config();
 
@@ -117,6 +119,79 @@ async function refreshAlexaToken() {
 
 // ===================== ALEXA SMART HOME LOGIC =====================
 
+import { Client } from 'tplink-smarthome-api';
+
+const client = new Client();
+
+// Discover Tapo devices on your network
+async function discoverTapoLamps() {
+  try {
+    console.log('🔍 Discovering Tapo devices...');
+    
+    const devices = await client.startDiscovery({
+      deviceTypes: ['plug', 'bulb'],
+      discoveryTimeout: 10000 // 10 seconds
+    });
+
+    const tapoEndpoints = [];
+    
+    devices.forEach(device => {
+      if (device.type === 'bulb') {
+        tapoEndpoints.push({
+          endpointId: `tapo-bulb-${device.deviceId}`,
+          manufacturerName: 'TP-Link',
+          friendlyName: device.name || `Tapo Bulb ${device.deviceId}`,
+          description: 'Tapo Smart Bulb',
+          displayCategories: ['LIGHT'],
+          capabilities: [
+            {
+              type: "AlexaInterface",
+              interface: "Alexa.PowerController",
+              version: "3",
+              properties: { supported: [{ name: "powerState" }], proactivelyReported: true, retrievable: true }
+            },
+            {
+              type: "AlexaInterface", 
+              interface: "Alexa.BrightnessController",
+              version: "3",
+              properties: { supported: [{ name: "brightness" }], proactivelyReported: true, retrievable: true }
+            }
+            // Add ColorController if your bulbs support color
+          ]
+        });
+      }
+    });
+
+    return tapoEndpoints;
+  } catch (error) {
+    console.error('Tapo discovery failed:', error);
+    return [];
+  }
+}
+
+// Control Tapo bulb
+async function controlTapoBulb(deviceId, powerOn) {
+  try {
+    // Find device by ID
+    const devices = await client.startDiscovery({
+      deviceTypes: ['bulb'],
+      discoveryTimeout: 5000
+    });
+
+    const device = devices.find(d => d.deviceId === deviceId);
+    if (!device) {
+      throw new Error(`Tapo device ${deviceId} not found`);
+    }
+
+    await device.setPowerState(powerOn);
+    console.log(`✅ Tapo bulb ${deviceId} turned ${powerOn ? 'ON' : 'OFF'}`);
+    return true;
+  } catch (error) {
+    console.error('Tapo control failed:', error);
+    return false;
+  }
+}
+
 // Alexa Smart Home endpoint
 app.post('/alexa/smarthome', async (req, res) => {
   console.log('Alexa Smart Home request:', JSON.stringify(req.body, null, 2));
@@ -168,99 +243,179 @@ app.post('/alexa/smarthome', async (req, res) => {
   }
 });
 
-// Alexa discovery handler
-function handleAlexaDiscovery(directive, res) {
+// Alexa discovery handler - UPDATED with Tapo integration
+async function handleAlexaDiscovery(directive, res) {
   if (directive.header.name === 'Discover') {
-    const endpoints = [
-      {
-        endpointId: "haunted-blackout",
-        manufacturerName: "Haunted House",
-        friendlyName: "Blackout Effect",
-        description: "Complete darkness effect",
-        displayCategories: ["SWITCH"],
+    try {
+      // 1. Get virtual haunted house devices
+      const virtualEndpoints = [
+        {
+          endpointId: "haunted-blackout",
+          manufacturerName: "Haunted House",
+          friendlyName: "Blackout Effect",
+          description: "Complete darkness effect",
+          displayCategories: ["SWITCH"],
+          capabilities: [
+            {
+              type: "AlexaInterface",
+              interface: "Alexa.PowerController",
+              version: "3",
+              properties: {
+                supported: [{ name: "powerState" }],
+                proactivelyReported: true,
+                retrievable: true
+              }
+            }
+          ]
+        },
+        {
+          endpointId: "haunted-flash-red",
+          manufacturerName: "Haunted House", 
+          friendlyName: "Red Flash Effect",
+          description: "Sudden red flash effect",
+          displayCategories: ["SWITCH"],
+          capabilities: [
+            {
+              type: "AlexaInterface",
+              interface: "Alexa.PowerController", 
+              version: "3",
+              properties: {
+                supported: [{ name: "powerState" }],
+                proactivelyReported: true,
+                retrievable: true
+              }
+            }
+          ]
+        },
+        {
+          endpointId: "haunted-plug-on",
+          manufacturerName: "Haunted House", 
+          friendlyName: "Plug On Effect",
+          description: "Trigger plug on effect",
+          displayCategories: ["SWITCH"],
+          capabilities: [
+            {
+              type: "AlexaInterface",
+              interface: "Alexa.PowerController", 
+              version: "3",
+              properties: {
+                supported: [{ name: "powerState" }],
+                proactivelyReported: true,
+                retrievable: true
+              }
+            }
+          ]
+        },
+        {
+          endpointId: "haunted-reset",
+          manufacturerName: "Haunted House", 
+          friendlyName: "Reset Effect",
+          description: "Reset all effects",
+          displayCategories: ["SWITCH"],
+          capabilities: [
+            {
+              type: "AlexaInterface",
+              interface: "Alexa.PowerController", 
+              version: "3",
+              properties: {
+                supported: [{ name: "powerState" }],
+                proactivelyReported: true,
+                retrievable: true
+              }
+            }
+          ]
+        }
+      ];
+
+      // 2. Discover REAL Tapo bulbs
+      const realTapoBulbs = await discoverTapoLamps();
+      console.log(`🔍 Found ${realTapoBulbs.length} Tapo bulbs`);
+
+      // 3. Combine virtual and real devices
+      const allEndpoints = [...virtualEndpoints, ...realTapoBulbs];
+      
+      res.json({
+        event: {
+          header: {
+            namespace: "Alexa.Discovery",
+            name: "Discover.Response",
+            messageId: directive.header.messageId,
+            payloadVersion: "3"
+          },
+          payload: { endpoints: allEndpoints }
+        }
+      });
+
+    } catch (error) {
+      console.error('Discovery failed:', error);
+      // Fallback to virtual devices only if Tapo discovery fails
+      res.json({
+        event: {
+          header: {
+            namespace: "Alexa.Discovery",
+            name: "Discover.Response",
+            messageId: directive.header.messageId,
+            payloadVersion: "3"
+          },
+          payload: { endpoints: virtualEndpoints }
+        }
+      });
+    }
+  }
+}
+
+// Add this function to discover Tapo bulbs
+async function discoverTapoLamps() {
+  try {
+    const { Client } = require('tplink-smarthome-api');
+    const client = new Client();
+    
+    console.log('🔍 Discovering Tapo devices...');
+    
+    const devices = await client.startDiscovery({
+      deviceTypes: ['bulb'],
+      discoveryTimeout: 10000
+    });
+
+    const tapoEndpoints = [];
+    
+    devices.forEach(device => {
+      tapoEndpoints.push({
+        endpointId: `tapo-bulb-${device.deviceId}`,
+        manufacturerName: 'TP-Link',
+        friendlyName: device.name || `Tapo Bulb ${device.deviceId}`,
+        description: 'Tapo Smart Bulb',
+        displayCategories: ['LIGHT'],
         capabilities: [
           {
             type: "AlexaInterface",
             interface: "Alexa.PowerController",
             version: "3",
-            properties: {
-              supported: [{ name: "powerState" }],
-              proactivelyReported: true,
-              retrievable: true
+            properties: { 
+              supported: [{ name: "powerState" }], 
+              proactivelyReported: true, 
+              retrievable: true 
             }
-          }
-        ]
-      },
-      {
-        endpointId: "haunted-flash-red",
-        manufacturerName: "Haunted House", 
-        friendlyName: "Red Flash Effect",
-        description: "Sudden red flash effect",
-        displayCategories: ["SWITCH"],
-        capabilities: [
+          },
           {
-            type: "AlexaInterface",
-            interface: "Alexa.PowerController", 
+            type: "AlexaInterface", 
+            interface: "Alexa.BrightnessController",
             version: "3",
-            properties: {
-              supported: [{ name: "powerState" }],
-              proactivelyReported: true,
-              retrievable: true
+            properties: { 
+              supported: [{ name: "brightness" }], 
+              proactivelyReported: true, 
+              retrievable: true 
             }
           }
+          // Add more capabilities if your bulbs support color, etc.
         ]
-      },
-      {
-        endpointId: "haunted-plug-on",
-        manufacturerName: "Haunted House", 
-        friendlyName: "Plug On Effect",
-        description: "Trigger plug on effect",
-        displayCategories: ["SWITCH"],
-        capabilities: [
-          {
-            type: "AlexaInterface",
-            interface: "Alexa.PowerController", 
-            version: "3",
-            properties: {
-              supported: [{ name: "powerState" }],
-              proactivelyReported: true,
-              retrievable: true
-            }
-          }
-        ]
-      },
-      {
-        endpointId: "haunted-reset",
-        manufacturerName: "Haunted House", 
-        friendlyName: "Reset Effect",
-        description: "Reset all effects",
-        displayCategories: ["SWITCH"],
-        capabilities: [
-          {
-            type: "AlexaInterface",
-            interface: "Alexa.PowerController", 
-            version: "3",
-            properties: {
-              supported: [{ name: "powerState" }],
-              proactivelyReported: true,
-              retrievable: true
-            }
-          }
-        ]
-      }
-    ];
-    
-    res.json({
-      event: {
-        header: {
-          namespace: "Alexa.Discovery",
-          name: "Discover.Response",
-          messageId: directive.header.messageId,
-          payloadVersion: "3"
-        },
-        payload: { endpoints }
-      }
+      });
     });
+
+    return tapoEndpoints;
+  } catch (error) {
+    console.error('Tapo discovery failed:', error);
+    return []; // Return empty array if discovery fails
   }
 }
 
@@ -279,61 +434,102 @@ app.post('/api/trigger-direct', (req, res) => {
   });
 });
 
-// Alexa power control handler - IMPROVED VERSION
+// Alexa power control handler - COMBINED VERSION with Tapo support
 async function handleAlexaPowerControl(directive, res) {
   try {
     const endpointId = directive.endpoint.endpointId;
     const { name } = directive.header;
-    const effect = endpointId.replace('haunted-', '');
+    const turnOn = name === 'TurnOn';
     
-    console.log(`🎭 Alexa controlling: ${endpointId}, action: ${name}, effect: ${effect}`);
+    console.log(`🎭 Alexa controlling: ${endpointId}, action: ${name}`);
     
-    // Only trigger effects for TurnOn commands
-    if (name === 'TurnOn') {
-      try {
-        const triggerResponse = await axios.post(
-          `${process.env.RAILWAY_URL || 'http://localhost:3000'}/api/trigger-direct`,
-          { effect: effect },
-          { timeout: 5000 }
-        );
-        
-        console.log('✅ Direct trigger successful:', triggerResponse.data);
-      } catch (triggerError) {
-        console.error('❌ Direct trigger failed:', triggerError.message);
-        // Continue with Alexa response even if hardware fails
-      }
-    }
-    
-    // Response to Alexa
-    const response = {
-      event: {
-        header: {
-          namespace: "Alexa",
-          name: "Response",
-          messageId: directive.header.messageId,
-          payloadVersion: "3",
-          correlationToken: directive.header.correlationToken
+    // Handle REAL Tapo bulbs
+    if (endpointId.startsWith('tapo-bulb-')) {
+      const deviceId = endpointId.replace('tapo-bulb-', '');
+      const success = await controlTapoBulb(deviceId, turnOn);
+      
+      // Send response to Alexa
+      const response = {
+        event: {
+          header: {
+            namespace: "Alexa",
+            name: "Response",
+            messageId: directive.header.messageId,
+            payloadVersion: "3",
+            correlationToken: directive.header.correlationToken
+          },
+          endpoint: directive.endpoint,
+          payload: {}
         },
-        endpoint: directive.endpoint,
-        payload: {}
-      },
-      context: {
-        properties: [{
-          namespace: "Alexa.PowerController",
-          name: "powerState",
-          value: name === 'TurnOn' ? "ON" : "OFF",
-          timeOfSample: new Date().toISOString(),
-          uncertaintyInMilliseconds: 500
-        }]
+        context: {
+          properties: [{
+            namespace: "Alexa.PowerController",
+            name: "powerState",
+            value: turnOn ? "ON" : "OFF",
+            timeOfSample: new Date().toISOString(),
+            uncertaintyInMilliseconds: 500
+          }]
+        }
+      };
+      
+      console.log('📤 Sending Alexa response for Tapo bulb');
+      return res.json(response);
+    }
+    // Handle VIRTUAL haunted devices
+    else if (endpointId.startsWith('haunted-')) {
+      const effect = endpointId.replace('haunted-', '');
+      
+      // Only trigger effects for TurnOn commands
+      if (name === 'TurnOn') {
+        try {
+          const triggerResponse = await axios.post(
+            `${process.env.RAILWAY_URL || 'http://localhost:3000'}/api/trigger-direct`,
+            { effect: effect },
+            { timeout: 5000 }
+          );
+          
+          console.log('✅ Direct trigger successful:', triggerResponse.data);
+        } catch (triggerError) {
+          console.error('❌ Direct trigger failed:', triggerError.message);
+          // Continue with Alexa response even if hardware fails
+        }
       }
-    };
-    
-    console.log('📤 Sending Alexa response:', JSON.stringify(response, null, 2));
-    res.json(response);
+      
+      // Response to Alexa
+      const response = {
+        event: {
+          header: {
+            namespace: "Alexa",
+            name: "Response",
+            messageId: directive.header.messageId,
+            payloadVersion: "3",
+            correlationToken: directive.header.correlationToken
+          },
+          endpoint: directive.endpoint,
+          payload: {}
+        },
+        context: {
+          properties: [{
+            namespace: "Alexa.PowerController",
+            name: "powerState",
+            value: name === 'TurnOn' ? "ON" : "OFF",
+            timeOfSample: new Date().toISOString(),
+            uncertaintyInMilliseconds: 500
+          }]
+        }
+      };
+      
+      console.log('📤 Sending Alexa response for virtual device');
+      return res.json(response);
+    }
+    // Unknown device type
+    else {
+      throw new Error(`Unknown endpoint type: ${endpointId}`);
+    }
     
   } catch (error) {
     console.error('💥 Error in handleAlexaPowerControl:', error);
-    res.status(500).json({ 
+    return res.status(500).json({ 
       error: 'INTERNAL_ERROR',
       message: error.message 
     });
