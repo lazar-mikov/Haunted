@@ -525,17 +525,7 @@ app.get('/auth/alexa/callback', async (req, res) => {
   }
 });
 
-// Add this route to check Alexa connection status
-app.get('/api/alexa/status', (req, res) => {
-  const storageKey = 'alexa_main_tokens';
-  const accessToken = alexaUserSessions.get(storageKey);
-  
-  if (accessToken) {
-    res.json({ connected: true, hasToken: true });
-  } else {
-    res.json({ connected: false, hasToken: false });
-  }
-});
+
 
   try {
     console.log('🔍 Getting user devices via SMAPI...');
