@@ -328,7 +328,7 @@ app.get('/auth/alexa', (req, res) => {
   // Redirect to Amazon's OAuth endpoint WITH SMART HOME SCOPES
   const amazonAuthUrl = new URL('https://www.amazon.com/ap/oa');
 amazonAuthUrl.searchParams.set('client_id', client_id);
-  amazonAuthUrl.searchParams.set('scope', 'profile');
+  amazonAuthUrl.searchParams.set('scope', 'smart_home');
   amazonAuthUrl.searchParams.set('response_type', 'code');
   amazonAuthUrl.searchParams.set('redirect_uri', `${process.env.RAILWAY_URL || 'https://haunted-production.up.railway.app'}/auth/alexa/callback`);
   amazonAuthUrl.searchParams.set('state', state);
