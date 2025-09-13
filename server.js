@@ -5,14 +5,10 @@ import dotenv from "dotenv";
 import crypto from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
-// ESM-compatible import from a CommonJS module
-import pkg from 'tplink-smarthome-api';
-const { Client } = pkg;
 
 dotenv.config();
 
 const app = express();
-const client = new Client(); // Single client instance
 
 // Token storage
 let tokens = new Map();
@@ -35,63 +31,171 @@ app.use(session({
 }));
 app.use(express.static("public"));
 
-// ===================== TAPO FUNCTIONS =====================
-async function discoverTapoLamps() {
+// ===================== ALEXA SMAPI FUNCTIONS =====================
+async function getAlexaDevices(accessToken) {
   try {
-    console.log('🔍 Discovering Tapo devices...');
-    const devices = await client.startDiscovery({
-      deviceTypes: ['bulb'],
-      discoveryTimeout: 10000
-    });
-
-    const tapoEndpoints = [];
-    devices.forEach(device => {
-      if (device.type === 'bulb') {
-        tapoEndpoints.push({
-          endpointId: `tapo-bulb-${device.deviceId}`,
-          manufacturerName: 'TP-Link',
-          friendlyName: device.name || `Tapo Bulb ${device.deviceId}`,
-          description: 'Tapo Smart Bulb',
-          displayCategories: ['LIGHT'],
-          capabilities: [
-            {
-              type: "AlexaInterface",
-              interface: "Alexa.PowerController",
-              version: "3",
-              properties: { 
-                supported: [{ name: "powerState" }], 
-                proactivelyReported: true, 
-                retrievable: true 
-              }
-            }
-          ]
-        });
+    console.log('🔍 Getting user devices via SMAPI...');
+    const response = await axios.get('https://api.amazonalexa.com/v1/devices', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
       }
     });
-    return tapoEndpoints;
+    
+    // Filter for lights and plugs only
+    const lightDevices = response.data.devices.filter(device => 
+      device.deviceType === 'AUTO' || // Alexa considers many smart lights as AUTO type
+      device.deviceType === 'LIGHT' ||
+      device.deviceType === 'PLUG' ||
+      device.deviceType === 'SMARTPLUG'
+    );
+    
+    console.log(`✅ Found ${lightDevices.length} controllable devices`);
+    return lightDevices;
   } catch (error) {
-    console.error('Tapo discovery failed:', error);
+    console.error('❌ Failed to get user devices:', error.response?.data || error.message);
     return [];
   }
 }
 
-async function controlTapoBulb(deviceId, powerOn) {
+async function createAlexaRoutine(accessToken, routineName, triggerDeviceId, actionDeviceId, actionType, actionValue = null) {
   try {
-    console.log(`💡 Controlling Tapo bulb ${deviceId}: ${powerOn ? 'ON' : 'OFF'}`);
-    const devices = await client.startDiscovery({
-      deviceTypes: ['bulb'],
-      discoveryTimeout: 5000
+    console.log(`🛠 Creating routine: ${routineName}`);
+    
+    // Build the action payload based on action type
+    let actionPayload = {};
+    switch (actionType) {
+      case 'turnOff':
+        actionPayload = { action: 'turnOff' };
+        break;
+      case 'turnOn':
+        actionPayload = { action: 'turnOn' };
+        break;
+      case 'setColor':
+        actionPayload = { 
+          action: 'setColor',
+          value: actionValue 
+        };
+        break;
+      case 'setPercentage':
+        actionPayload = { 
+          action: 'setPercentage',
+          value: actionValue 
+        };
+        break;
+      default:
+        actionPayload = { action: 'turnOff' };
+    }
+
+    const routineData = {
+      name: routineName,
+      trigger: {
+        type: "SmartHome.DeviceActivation",
+        payload: {
+          device: {
+            deviceId: triggerDeviceId,
+            type: "Alexa.Scene"
+          },
+          activation: {
+            type: "TURN_ON",
+            value: "true"
+          }
+        }
+      },
+      actions: [
+        {
+          type: "SmartHome.Control",
+          parameters: {
+            devices: [actionDeviceId],
+            ...actionPayload
+          }
+        }
+      ]
+    };
+
+    const response = await axios.post('https://api.amazonalexa.com/v1/routines', routineData, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      }
     });
 
-    const device = devices.find(d => d.deviceId === deviceId);
-    if (!device) throw new Error(`Tapo device ${deviceId} not found`);
-
-    await device.setPowerState(powerOn);
-    console.log(`✅ Tapo bulb ${deviceId} turned ${powerOn ? 'ON' : 'OFF'}`);
-    return true;
+    console.log(`✅ Routine created: ${routineName}`);
+    return response.data;
   } catch (error) {
-    console.error('❌ Tapo control failed:', error);
-    return false;
+    console.error('❌ Failed to create routine:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+async function setupAutomaticRoutines(accessToken) {
+  try {
+    console.log('🚀 Setting up automatic routines...');
+    
+    // Get user's devices
+    const userDevices = await getAlexaDevices(accessToken);
+    if (userDevices.length === 0) {
+      console.log('⚠️ No compatible devices found for automatic setup');
+      return { success: false, message: 'No compatible devices found' };
+    }
+
+    // Use the first available device for automation
+    const targetDevice = userDevices[0];
+    
+    // Create routines for each virtual device
+    const routines = [
+      {
+        name: "Haunted House - Blackout",
+        triggerDeviceId: "haunted-blackout",
+        actionType: "turnOff",
+        actionValue: null
+      },
+      {
+        name: "Haunted House - Red Flash", 
+        triggerDeviceId: "haunted-flash-red",
+        actionType: "setColor",
+        actionValue: { hue: 0, saturation: 1, brightness: 1 } // Red
+      },
+      {
+        name: "Haunted House - Plug On",
+        triggerDeviceId: "haunted-plug-on", 
+        actionType: "turnOn",
+        actionValue: null
+      },
+      {
+        name: "Haunted House - Reset",
+        triggerDeviceId: "haunted-reset",
+        actionType: "turnOn",
+        actionValue: null
+      }
+    ];
+
+    const createdRoutines = [];
+    
+    for (const routine of routines) {
+      try {
+        await createAlexaRoutine(
+          accessToken,
+          routine.name,
+          routine.triggerDeviceId,
+          targetDevice.deviceId,
+          routine.actionType,
+          routine.actionValue
+        );
+        createdRoutines.push(routine.name);
+      } catch (error) {
+        console.error(`Failed to create routine: ${routine.name}`, error.message);
+      }
+    }
+
+    console.log(`✅ Created ${createdRoutines.length} routines`);
+    return { 
+      success: true, 
+      routinesCreated: createdRoutines,
+      targetDevice: targetDevice.friendlyName
+    };
+  } catch (error) {
+    console.error('❌ Automatic routine setup failed:', error.message);
+    return { success: false, error: error.message };
   }
 }
 
@@ -104,7 +208,7 @@ async function handleAlexaDiscovery(directive, res) {
           endpointId: "haunted-blackout",
           manufacturerName: "Haunted House",
           friendlyName: "Blackout Effect",
-          description: "Complete darkness effect",
+          description: "Complete darkness effect - Create a routine with this as trigger",
           displayCategories: ["SWITCH"],
           capabilities: [{
             type: "AlexaInterface",
@@ -121,7 +225,7 @@ async function handleAlexaDiscovery(directive, res) {
           endpointId: "haunted-flash-red",
           manufacturerName: "Haunted House", 
           friendlyName: "Red Flash Effect",
-          description: "Sudden red flash effect",
+          description: "Sudden red flash effect - Create a routine with this as trigger",
           displayCategories: ["SWITCH"],
           capabilities: [{
             type: "AlexaInterface",
@@ -138,7 +242,7 @@ async function handleAlexaDiscovery(directive, res) {
           endpointId: "haunted-plug-on",
           manufacturerName: "Haunted House", 
           friendlyName: "Plug On Effect",
-          description: "Trigger plug on effect",
+          description: "Trigger plug on effect - Create a routine with this as trigger",
           displayCategories: ["SWITCH"],
           capabilities: [{
             type: "AlexaInterface",
@@ -155,7 +259,7 @@ async function handleAlexaDiscovery(directive, res) {
           endpointId: "haunted-reset",
           manufacturerName: "Haunted House", 
           friendlyName: "Reset Effect",
-          description: "Reset all effects",
+          description: "Reset all effects - Create a routine with this as trigger",
           displayCategories: ["SWITCH"],
           capabilities: [{
             type: "AlexaInterface",
@@ -169,10 +273,6 @@ async function handleAlexaDiscovery(directive, res) {
           }]
         }
       ];
-
-      const realTapoBulbs = await discoverTapoLamps();
-      console.log(`🔍 Found ${realTapoBulbs.length} Tapo bulbs`);
-      const allEndpoints = [...virtualEndpoints, ...realTapoBulbs];
       
       res.json({
         event: {
@@ -182,7 +282,7 @@ async function handleAlexaDiscovery(directive, res) {
             messageId: directive.header.messageId,
             payloadVersion: "3"
           },
-          payload: { endpoints: allEndpoints }
+          payload: { endpoints: virtualEndpoints }
         }
       });
     } catch (error) {
@@ -200,35 +300,7 @@ async function handleAlexaPowerControl(directive, res) {
     
     console.log(`🎭 Alexa controlling: ${endpointId}, action: ${name}`);
     
-    if (endpointId.startsWith('tapo-bulb-')) {
-      const deviceId = endpointId.replace('tapo-bulb-', '');
-      const success = await controlTapoBulb(deviceId, turnOn);
-      
-      const response = {
-        event: {
-          header: {
-            namespace: "Alexa",
-            name: "Response",
-            messageId: directive.header.messageId,
-            payloadVersion: "3",
-            correlationToken: directive.header.correlationToken
-          },
-          endpoint: directive.endpoint,
-          payload: {}
-        },
-        context: {
-          properties: [{
-            namespace: "Alexa.PowerController",
-            name: "powerState",
-            value: turnOn ? "ON" : "OFF",
-            timeOfSample: new Date().toISOString(),
-            uncertaintyInMilliseconds: 500
-          }]
-        }
-      };
-      return res.json(response);
-    }
-    else if (endpointId.startsWith('haunted-')) {
+    if (endpointId.startsWith('haunted-')) {
       const effect = endpointId.replace('haunted-', '');
       if (name === 'TurnOn') {
         try {
@@ -316,7 +388,25 @@ app.post('/api/trigger-direct', (req, res) => {
   res.json({ success: true, message: `Direct trigger: ${effect}`, effect: effect });
 });
 
-// ===================== AUTHENTICATION (UNCHANGED) =====================
+// New endpoint to setup routines automatically
+app.post('/api/setup-routines', async (req, res) => {
+  try {
+    const storageKey = 'alexa_main_tokens';
+    const accessToken = alexaUserSessions.get(storageKey);
+    
+    if (!accessToken) {
+      return res.status(401).json({ success: false, message: 'Not authenticated with Alexa' });
+    }
+    
+    const result = await setupAutomaticRoutines(accessToken);
+    res.json(result);
+  } catch (error) {
+    console.error('Routine setup error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ===================== AUTHENTICATION (UPDATED SCOPES) =====================
 app.post('/api/alexa/handle-grant', async (req, res) => {
   try {
     const { grantCode } = req.body;
@@ -382,9 +472,16 @@ app.get('/auth/alexa', (req, res) => {
   req.session.authState = state;
   req.session.authRedirectUri = redirect_uri;
   
+  // Updated scopes to include routine management
+  const scopes = [
+    'profile',
+    'alexa::household:routines:read',
+    'alexa::household:routines:write'
+  ].join(' ');
+  
   const amazonAuthUrl = new URL('https://www.amazon.com/ap/oa');
   amazonAuthUrl.searchParams.set('client_id', client_id);
-  amazonAuthUrl.searchParams.set('scope', 'profile');
+  amazonAuthUrl.searchParams.set('scope', scopes);
   amazonAuthUrl.searchParams.set('response_type', 'code');
   amazonAuthUrl.searchParams.set('redirect_uri', `${process.env.RAILWAY_URL || 'https://haunted-production.up.railway.app'}/auth/alexa/callback`);
   amazonAuthUrl.searchParams.set('state', state);
@@ -412,6 +509,15 @@ app.get('/auth/alexa/callback', async (req, res) => {
     alexaUserSessions.set(storageKey, tokens.access_token);
     alexaRefreshTokens.set(storageKey, tokens.refresh_token);
     console.log('✅ Tokens stored with fixed key');
+    
+    // Try to automatically setup routines after successful auth
+    try {
+      await setupAutomaticRoutines(tokens.access_token);
+      console.log('✅ Automatic routine setup attempted');
+    } catch (routineError) {
+      console.log('⚠️ Automatic routine setup failed, user will need manual setup:', routineError.message);
+    }
+    
     res.redirect('/?alexaConnected=1');
   } catch (error) {
     console.error('💥 Token exchange failed:', error.message);
@@ -419,8 +525,6 @@ app.get('/auth/alexa/callback', async (req, res) => {
   }
 });
 
-
-// ===================== END ALEXA LOGIC =====================
 
 // [REST OF YOUR EXISTING CODE REMAINS UNCHANGED - IFTTT,
 
