@@ -266,7 +266,7 @@ function handleAlexaDiscovery(directive, res) {
 
 // Alexa power control handler
 function handleAlexaPowerControl(directive, res) {
-  const { endpointId, name } = directive.header;
+  const { endpointId, name } = directive.endpoint.endpointId;
   const effect = endpointId.replace('haunted-', '');
   
   // Trigger your existing effect system
