@@ -1,30 +1,26 @@
 import express from "express";
 import axios from "axios";
-import session from "express-session"; // CHANGED from cookie-session
+import session from "express-session";
 import dotenv from "dotenv";
 import crypto from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
 import { Client } from 'tplink-smarthome-api';
 
-
 dotenv.config();
 
 const app = express();
+const client = new Client(); // Single client instance
 
-// [FIX] Define tokens Map at the top level so it's accessible everywhere
+// Token storage
 let tokens = new Map();
 let authCodes = new Map();
+const alexaUserSessions = new Map();
+const alexaRefreshTokens = new Map();
 
-// Alexa token storage
-const alexaUserSessions = new Map(); // sessionId -> accessToken
-const alexaRefreshTokens = new Map(); // sessionId -> refreshToken
-
-/** [ADDED] parse urlencoded too (IFTTT & some tools send form bodies) */
+// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// CHANGED: Use express-session instead of cookie-session
 app.use(session({
   secret: process.env.SESSION_SECRET || "haunted",
   resave: false,
@@ -32,110 +28,21 @@ app.use(session({
   cookie: {
     httpOnly: true,
     sameSite: "lax",
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    maxAge: 24 * 60 * 60 * 1000
   }
 }));
-
-// Serve static frontend
 app.use(express.static("public"));
 
-// Add this to your server.js for handling grants
-app.post('/api/alexa/handle-grant', async (req, res) => {
-  try {
-    const { grantCode } = req.body;
-    console.log('🔐 Handling grant code:', grantCode);
-    
-    // Exchange grant code for tokens
-    const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', {
-      grant_type: 'authorization_code',
-      code: grantCode,
-      client_id: process.env.LWA_CLIENT_ID,
-      client_secret: process.env.LWA_CLIENT_SECRET,
-      redirect_uri: 'https://haunted-production.up.railway.app/auth/alexa/callback'
-    }, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      }
-    });
-    
-    const tokens = tokenResponse.data;
-    console.log('✅ Grant exchange successful');
-    
-    // Store tokens (you'll need to associate with user/skill)
-    const storageKey = 'alexa_grant_tokens';
-    alexaUserSessions.set(storageKey, tokens.access_token);
-    alexaRefreshTokens.set(storageKey, tokens.refresh_token);
-    
-    res.json({ success: true, message: 'Grant handled successfully' });
-    
-  } catch (error) {
-    console.error('Grant handling failed:', error.message);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-
-
-
-// Add this function to your server
-async function refreshAlexaToken() {
-  try {
-    const storageKey = 'alexa_main_tokens';
-    const refreshToken = alexaRefreshTokens.get(storageKey);
-    
-    if (!refreshToken) {
-      throw new Error('No refresh token available');
-    }
-    
-    console.log('🔄 Refreshing Alexa token...');
-    
-    const response = await axios.post('https://api.amazon.com/auth/o2/token', {
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-      client_id: process.env.LWA_CLIENT_ID,
-      client_secret: process.env.LWA_CLIENT_SECRET
-    }, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      }
-    });
-    
-    const newTokens = response.data;
-    
-    // Store the new tokens
-    alexaUserSessions.set(storageKey, newTokens.access_token);
-    if (newTokens.refresh_token) {
-      alexaRefreshTokens.set(storageKey, newTokens.refresh_token);
-    }
-    
-    console.log('✅ Token refreshed successfully');
-    return newTokens.access_token;
-    
-  } catch (error) {
-    console.error('❌ Token refresh failed:', error.message);
-    throw error;
-  }
-}
-
-// ===================== ALEXA SMART HOME LOGIC =====================
-
-
-const client = new Client();
-
-// Discover Tapo devices on your network
-
-// Discover Tapo devices on your network
+// ===================== TAPO FUNCTIONS =====================
 async function discoverTapoLamps() {
   try {
     console.log('🔍 Discovering Tapo devices...');
-    
     const devices = await client.startDiscovery({
-      deviceTypes: ['plug', 'bulb'],
-      discoveryTimeout: 10000 // 10 seconds
+      deviceTypes: ['bulb'],
+      discoveryTimeout: 10000
     });
 
     const tapoEndpoints = [];
-    
     devices.forEach(device => {
       if (device.type === 'bulb') {
         tapoEndpoints.push({
@@ -149,19 +56,16 @@ async function discoverTapoLamps() {
               type: "AlexaInterface",
               interface: "Alexa.PowerController",
               version: "3",
-              properties: { supported: [{ name: "powerState" }], proactivelyReported: true, retrievable: true }
-            },
-            {
-              type: "AlexaInterface", 
-              interface: "Alexa.BrightnessController",
-              version: "3",
-              properties: { supported: [{ name: "brightness" }], proactivelyReported: true, retrievable: true }
+              properties: { 
+                supported: [{ name: "powerState" }], 
+                proactivelyReported: true, 
+                retrievable: true 
+              }
             }
           ]
         });
       }
     });
-
     return tapoEndpoints;
   } catch (error) {
     console.error('Tapo discovery failed:', error);
@@ -169,20 +73,16 @@ async function discoverTapoLamps() {
   }
 }
 
-// Control Tapo bulb
 async function controlTapoBulb(deviceId, powerOn) {
   try {
     console.log(`💡 Controlling Tapo bulb ${deviceId}: ${powerOn ? 'ON' : 'OFF'}`);
-    
     const devices = await client.startDiscovery({
       deviceTypes: ['bulb'],
       discoveryTimeout: 5000
     });
 
     const device = devices.find(d => d.deviceId === deviceId);
-    if (!device) {
-      throw new Error(`Tapo device ${deviceId} not found`);
-    }
+    if (!device) throw new Error(`Tapo device ${deviceId} not found`);
 
     await device.setPowerState(powerOn);
     console.log(`✅ Tapo bulb ${deviceId} turned ${powerOn ? 'ON' : 'OFF'}`);
@@ -193,64 +93,10 @@ async function controlTapoBulb(deviceId, powerOn) {
   }
 }
 
-
-
-// Alexa Smart Home endpoint
-app.post('/alexa/smarthome', async (req, res) => {
-  console.log('Alexa Smart Home request:', JSON.stringify(req.body, null, 2));
-
-  const { directive } = req.body;
-  const authHeader = req.headers.authorization;
-
-  // Extra helpful log
-  console.log('🔍 Alexa request:', {
-    namespace: directive?.header?.namespace,
-    name: directive?.header?.name,
-    hasAuth: !!authHeader,
-  });
-
-  // ✅ Allow discovery requests without authentication
-  if (directive?.header?.namespace === 'Alexa.Discovery' && directive?.header?.name === 'Discover') {
-    console.log('✅ Allowing discovery request without auth');
-    return handleAlexaDiscovery(directive, res);
-  }
-
-  // Require auth for all other requests
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    console.log('❌ Missing auth token for non-discovery request');
-    return res.status(401).json({ error: 'Missing access token' });
-  }
-
-  const accessToken = authHeader.substring(7);
-
-  // Validate the token with Amazon
-  try {
-    const tokenInfo = await validateAlexaAccessToken(accessToken);
-
-    if (!tokenInfo || tokenInfo.aud !== process.env.LWA_CLIENT_ID) {
-      return res.status(401).json({ error: 'Invalid access token' });
-    }
-
-    // Handle different directive types
-    switch (directive.header.namespace) {
-      case 'Alexa.Discovery':
-        return handleAlexaDiscovery(directive, res);
-      case 'Alexa.PowerController':
-        return handleAlexaPowerControl(directive, res);
-      default:
-        return res.status(400).json({ error: 'UNSUPPORTED_OPERATION' });
-    }
-  } catch (error) {
-    console.error('Alexa token validation failed:', error);
-    return res.status(401).json({ error: 'Token validation failed' });
-  }
-});
-
-// Alexa discovery handler - UPDATED with Tapo integration
+// ===================== ALEXA HANDLERS =====================
 async function handleAlexaDiscovery(directive, res) {
   if (directive.header.name === 'Discover') {
     try {
-      // 1. Get virtual haunted house devices
       const virtualEndpoints = [
         {
           endpointId: "haunted-blackout",
@@ -258,18 +104,16 @@ async function handleAlexaDiscovery(directive, res) {
           friendlyName: "Blackout Effect",
           description: "Complete darkness effect",
           displayCategories: ["SWITCH"],
-          capabilities: [
-            {
-              type: "AlexaInterface",
-              interface: "Alexa.PowerController",
-              version: "3",
-              properties: {
-                supported: [{ name: "powerState" }],
-                proactivelyReported: true,
-                retrievable: true
-              }
+          capabilities: [{
+            type: "AlexaInterface",
+            interface: "Alexa.PowerController",
+            version: "3",
+            properties: {
+              supported: [{ name: "powerState" }],
+              proactivelyReported: true,
+              retrievable: true
             }
-          ]
+          }]
         },
         {
           endpointId: "haunted-flash-red",
@@ -277,18 +121,16 @@ async function handleAlexaDiscovery(directive, res) {
           friendlyName: "Red Flash Effect",
           description: "Sudden red flash effect",
           displayCategories: ["SWITCH"],
-          capabilities: [
-            {
-              type: "AlexaInterface",
-              interface: "Alexa.PowerController", 
-              version: "3",
-              properties: {
-                supported: [{ name: "powerState" }],
-                proactivelyReported: true,
-                retrievable: true
-              }
+          capabilities: [{
+            type: "AlexaInterface",
+            interface: "Alexa.PowerController", 
+            version: "3",
+            properties: {
+              supported: [{ name: "powerState" }],
+              proactivelyReported: true,
+              retrievable: true
             }
-          ]
+          }]
         },
         {
           endpointId: "haunted-plug-on",
@@ -296,18 +138,16 @@ async function handleAlexaDiscovery(directive, res) {
           friendlyName: "Plug On Effect",
           description: "Trigger plug on effect",
           displayCategories: ["SWITCH"],
-          capabilities: [
-            {
-              type: "AlexaInterface",
-              interface: "Alexa.PowerController", 
-              version: "3",
-              properties: {
-                supported: [{ name: "powerState" }],
-                proactivelyReported: true,
-                retrievable: true
-              }
+          capabilities: [{
+            type: "AlexaInterface",
+            interface: "Alexa.PowerController", 
+            version: "3",
+            properties: {
+              supported: [{ name: "powerState" }],
+              proactivelyReported: true,
+              retrievable: true
             }
-          ]
+          }]
         },
         {
           endpointId: "haunted-reset",
@@ -315,26 +155,21 @@ async function handleAlexaDiscovery(directive, res) {
           friendlyName: "Reset Effect",
           description: "Reset all effects",
           displayCategories: ["SWITCH"],
-          capabilities: [
-            {
-              type: "AlexaInterface",
-              interface: "Alexa.PowerController", 
-              version: "3",
-              properties: {
-                supported: [{ name: "powerState" }],
-                proactivelyReported: true,
-                retrievable: true
-              }
+          capabilities: [{
+            type: "AlexaInterface",
+            interface: "Alexa.PowerController", 
+            version: "3",
+            properties: {
+              supported: [{ name: "powerState" }],
+              proactivelyReported: true,
+              retrievable: true
             }
-          ]
+          }]
         }
       ];
 
-      // 2. Discover REAL Tapo bulbs
       const realTapoBulbs = await discoverTapoLamps();
       console.log(`🔍 Found ${realTapoBulbs.length} Tapo bulbs`);
-
-      // 3. Combine virtual and real devices
       const allEndpoints = [...virtualEndpoints, ...realTapoBulbs];
       
       res.json({
@@ -348,43 +183,13 @@ async function handleAlexaDiscovery(directive, res) {
           payload: { endpoints: allEndpoints }
         }
       });
-
     } catch (error) {
       console.error('Discovery failed:', error);
-      // Fallback to virtual devices only if Tapo discovery fails
-      res.json({
-        event: {
-          header: {
-            namespace: "Alexa.Discovery",
-            name: "Discover.Response",
-            messageId: directive.header.messageId,
-            payloadVersion: "3"
-          },
-          payload: { endpoints: virtualEndpoints }
-        }
-      });
+      res.status(500).json({ error: 'Discovery failed' });
     }
   }
 }
 
-
-
-app.post('/api/trigger-direct', (req, res) => {
-  const { effect } = req.body;
-  console.log('🎭 Direct effect trigger:', effect);
-  
-  // Add your DIRECT light control logic here
-  // This is where you talk to your lights/hardware directly
-  // NOT through Voice Monkey
-  
-  res.json({ 
-    success: true, 
-    message: `Direct trigger: ${effect}`,
-    effect: effect
-  });
-});
-
-// Alexa power control handler - COMBINED VERSION with Tapo support
 async function handleAlexaPowerControl(directive, res) {
   try {
     const endpointId = directive.endpoint.endpointId;
@@ -393,12 +198,10 @@ async function handleAlexaPowerControl(directive, res) {
     
     console.log(`🎭 Alexa controlling: ${endpointId}, action: ${name}`);
     
-    // Handle REAL Tapo bulbs
     if (endpointId.startsWith('tapo-bulb-')) {
       const deviceId = endpointId.replace('tapo-bulb-', '');
       const success = await controlTapoBulb(deviceId, turnOn);
       
-      // Send response to Alexa
       const response = {
         event: {
           header: {
@@ -421,31 +224,22 @@ async function handleAlexaPowerControl(directive, res) {
           }]
         }
       };
-      
-      console.log('📤 Sending Alexa response for Tapo bulb');
       return res.json(response);
     }
-    // Handle VIRTUAL haunted devices
     else if (endpointId.startsWith('haunted-')) {
       const effect = endpointId.replace('haunted-', '');
-      
-      // Only trigger effects for TurnOn commands
       if (name === 'TurnOn') {
         try {
-          const triggerResponse = await axios.post(
+          await axios.post(
             `${process.env.RAILWAY_URL || 'http://localhost:3000'}/api/trigger-direct`,
             { effect: effect },
             { timeout: 5000 }
           );
-          
-          console.log('✅ Direct trigger successful:', triggerResponse.data);
-        } catch (triggerError) {
-          console.error('❌ Direct trigger failed:', triggerError.message);
-          // Continue with Alexa response even if hardware fails
+        } catch (error) {
+          console.error('Direct trigger failed:', error.message);
         }
       }
       
-      // Response to Alexa
       const response = {
         event: {
           header: {
@@ -468,25 +262,108 @@ async function handleAlexaPowerControl(directive, res) {
           }]
         }
       };
-      
-      console.log('📤 Sending Alexa response for virtual device');
       return res.json(response);
     }
-    // Unknown device type
     else {
-      throw new Error(`Unknown endpoint type: ${endpointId}`);
+      return res.status(400).json({ error: 'Unknown endpoint' });
     }
-    
   } catch (error) {
-    console.error('💥 Error in handleAlexaPowerControl:', error);
-    return res.status(500).json({ 
-      error: 'INTERNAL_ERROR',
-      message: error.message 
-    });
+    console.error('Error in handleAlexaPowerControl:', error);
+    return res.status(500).json({ error: 'INTERNAL_ERROR', message: error.message });
   }
 }
 
-// Validate Alexa access token with Amazon
+// ===================== ROUTES =====================
+app.post('/alexa/smarthome', async (req, res) => {
+  console.log('Alexa Smart Home request:', JSON.stringify(req.body, null, 2));
+  const { directive } = req.body;
+  const authHeader = req.headers.authorization;
+
+  if (directive?.header?.namespace === 'Alexa.Discovery' && directive?.header?.name === 'Discover') {
+    return handleAlexaDiscovery(directive, res);
+  }
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing access token' });
+  }
+
+  const accessToken = authHeader.substring(7);
+  try {
+    const tokenInfo = await validateAlexaAccessToken(accessToken);
+    if (!tokenInfo || tokenInfo.aud !== process.env.LWA_CLIENT_ID) {
+      return res.status(401).json({ error: 'Invalid access token' });
+    }
+
+    switch (directive.header.namespace) {
+      case 'Alexa.Discovery':
+        return handleAlexaDiscovery(directive, res);
+      case 'Alexa.PowerController':
+        return handleAlexaPowerControl(directive, res);
+      default:
+        return res.status(400).json({ error: 'UNSUPPORTED_OPERATION' });
+    }
+  } catch (error) {
+    console.error('Alexa token validation failed:', error);
+    return res.status(401).json({ error: 'Token validation failed' });
+  }
+});
+
+app.post('/api/trigger-direct', (req, res) => {
+  const { effect } = req.body;
+  console.log('🎭 Direct effect trigger:', effect);
+  res.json({ success: true, message: `Direct trigger: ${effect}`, effect: effect });
+});
+
+// ===================== AUTHENTICATION (UNCHANGED) =====================
+app.post('/api/alexa/handle-grant', async (req, res) => {
+  try {
+    const { grantCode } = req.body;
+    console.log('🔐 Handling grant code:', grantCode);
+    const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', {
+      grant_type: 'authorization_code',
+      code: grantCode,
+      client_id: process.env.LWA_CLIENT_ID,
+      client_secret: process.env.LWA_CLIENT_SECRET,
+      redirect_uri: 'https://haunted-production.up.railway.app/auth/alexa/callback'
+    }, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+    
+    const tokens = tokenResponse.data;
+    console.log('✅ Grant exchange successful');
+    const storageKey = 'alexa_grant_tokens';
+    alexaUserSessions.set(storageKey, tokens.access_token);
+    alexaRefreshTokens.set(storageKey, tokens.refresh_token);
+    res.json({ success: true, message: 'Grant handled successfully' });
+  } catch (error) {
+    console.error('Grant handling failed:', error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+async function refreshAlexaToken() {
+  try {
+    const storageKey = 'alexa_main_tokens';
+    const refreshToken = alexaRefreshTokens.get(storageKey);
+    if (!refreshToken) throw new Error('No refresh token available');
+    
+    console.log('🔄 Refreshing Alexa token...');
+    const response = await axios.post('https://api.amazon.com/auth/o2/token', {
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: process.env.LWA_CLIENT_ID,
+      client_secret: process.env.LWA_CLIENT_SECRET
+    }, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+    
+    const newTokens = response.data;
+    alexaUserSessions.set(storageKey, newTokens.access_token);
+    if (newTokens.refresh_token) alexaRefreshTokens.set(storageKey, newTokens.refresh_token);
+    console.log('✅ Token refreshed successfully');
+    return newTokens.access_token;
+  } catch (error) {
+    console.error('❌ Token refresh failed:', error.message);
+    throw error;
+  }
+}
+
 async function validateAlexaAccessToken(token) {
   try {
     const response = await fetch(`https://api.amazon.com/auth/o2/tokeninfo?access_token=${token}`);
@@ -497,18 +374,14 @@ async function validateAlexaAccessToken(token) {
   }
 }
 
-// Alexa OAuth endpoints
 app.get('/auth/alexa', (req, res) => {
   const { client_id, redirect_uri, state } = req.query;
   console.log('🔍 /auth/alexa called:', { client_id, redirect_uri, state });
-  
-  // Store the state for verification later
   req.session.authState = state;
   req.session.authRedirectUri = redirect_uri;
   
-  // Redirect to Amazon's OAuth endpoint WITH SMART HOME SCOPES
   const amazonAuthUrl = new URL('https://www.amazon.com/ap/oa');
-amazonAuthUrl.searchParams.set('client_id', client_id);
+  amazonAuthUrl.searchParams.set('client_id', client_id);
   amazonAuthUrl.searchParams.set('scope', 'profile');
   amazonAuthUrl.searchParams.set('response_type', 'code');
   amazonAuthUrl.searchParams.set('redirect_uri', `${process.env.RAILWAY_URL || 'https://haunted-production.up.railway.app'}/auth/alexa/callback`);
@@ -520,401 +393,30 @@ amazonAuthUrl.searchParams.set('client_id', client_id);
 
 app.get('/auth/alexa/callback', async (req, res) => {
   console.log('🔍 Callback session ID:', req.sessionID);
-  
   try {
     const { code, state } = req.query;
     console.log('🔑 Exchanging code for tokens...');
-    
     const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', {
       grant_type: 'authorization_code',
       code: code,
       client_id: process.env.LWA_CLIENT_ID,
       client_secret: process.env.LWA_CLIENT_SECRET,
       redirect_uri: 'https://haunted-production.up.railway.app/auth/alexa/callback'
-    }, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      timeout: 10000
-    });
+    }, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10000 });
     
     const tokens = tokenResponse.data;
     console.log('✅ Token exchange successful!');
-    
-    // Store tokens with a CONSISTENT key (not session-dependent)
-    const storageKey = 'alexa_main_tokens'; // Use a fixed key instead of session ID
-    
+    const storageKey = 'alexa_main_tokens';
     alexaUserSessions.set(storageKey, tokens.access_token);
     alexaRefreshTokens.set(storageKey, tokens.refresh_token);
-    
     console.log('✅ Tokens stored with fixed key');
-    
-    // Redirect back with success - this will load your main page
     res.redirect('/?alexaConnected=1');
-    
   } catch (error) {
     console.error('💥 Token exchange failed:', error.message);
     res.redirect('/?alexaError=1&message=' + encodeURIComponent(error.message));
   }
 });
 
-// Modify your /api/alexa/trigger endpoint
-app.post('/api/alexa/trigger', async (req, res) => {
-  try {
-    const { effect } = req.body;
-    const storageKey = 'alexa_main_tokens';
-    let accessToken = alexaUserSessions.get(storageKey);
-    
-    if (!accessToken) {
-      return res.json({ success: false, message: 'No Alexa connection found. Please reconnect.' });
-    }
-    
-    // Try to trigger the effect
-    let result = await triggerAlexaEffect(accessToken, effect);
-    
-    // If token expired, refresh and try again
-    if (result.status === 401) {
-      console.log('🔄 Token expired, attempting refresh...');
-      accessToken = await refreshAlexaToken();
-      result = await triggerAlexaEffect(accessToken, effect);
-    }
-    
-    res.json(result);
-    
-  } catch (error) {
-    console.error('Trigger error:', error.message);
-    res.json({ success: false, message: error.message });
-  }
-});
-
-// Helper function for triggering effects
-async function triggerAlexaEffect(accessToken, effect) {
-  const endpointMap = {
-    'blackout': 'haunted-blackout',
-    'flash_red': 'haunted-flash-red',
-    'plug_on': 'haunted-plug-on',
-    'reset': 'haunted-reset'
-  };
-  
-  const endpointId = endpointMap[effect];
-  if (!endpointId) {
-    return { success: false, message: 'Invalid effect' };
-  }
-  
-  const alexaResponse = await fetch('https://api.eu.amazonalexa.com/v3/events', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      event: {
-        header: {
-          namespace: "Alexa.SceneController",
-          name: "Activate",
-          messageId: Math.random().toString(36).substring(2) + Date.now().toString(36),
-          payloadVersion: "3"
-        },
-        endpoint: {
-          endpointId: endpointId
-        },
-        payload: {}
-      }
-    })
-  });
-  
-  if (alexaResponse.status === 401) {
-    return { status: 401, success: false, message: 'Token expired' };
-  }
-  
-  if (!alexaResponse.ok) {
-    const errorText = await alexaResponse.text();
-    return { success: false, message: `Alexa API error: ${alexaResponse.status}` };
-  }
-  
-  return { success: true, message: `Triggered ${effect}` };
-}
-// ===================== DEBUG ENDPOINTS =====================
-
-// Add this refresh endpoint - THIS IS WHAT'S MISSING
-app.post('/api/alexa/refresh-token', async (req, res) => {
-  try {
-    console.log('🔄 Manual refresh requested');
-    const newToken = await refreshAlexaToken();
-    res.json({ success: true, message: 'Token refreshed', token: newToken });
-  } catch (error) {
-    console.error('❌ Manual refresh failed:', error.message);
-    res.json({ success: false, message: error.message });
-  }
-});
-
-// Token verification endpoint
-// Replace ALL verify-token endpoints with this one
-app.get('/api/alexa/verify-token', async (req, res) => {
-  try {
-    console.log('🔍 Verify token endpoint called');
-    
-    // Try to get token from query parameter first
-    let token = req.query.token;
-    console.log('Query token:', token ? 'Present' : 'Not present');
-    
-    // If no query token, try our fixed storage key
-    if (!token) {
-      const storageKey = 'alexa_main_tokens';
-      token = alexaUserSessions.get(storageKey);
-      console.log('Fixed key token:', token ? 'Present' : 'Not present');
-    }
-    
-    // If still no token, try session ID (for backward compatibility)
-    if (!token) {
-      token = alexaUserSessions.get(req.sessionID);
-      console.log('Session ID token:', token ? 'Present' : 'Not present');
-    }
-    
-    if (!token) {
-      console.log('❌ No token available for verification');
-      return res.json({ valid: false, message: 'No token available for verification' });
-    }
-    
-    console.log('✅ Token to verify (first 20 chars):', token.substring(0, 20));
-    
-    // Verify with Amazon
-    const response = await fetch(`https://api.amazon.com/auth/o2/tokeninfo?access_token=${token}`);
-    
-    if (!response.ok) {
-      console.log('❌ Amazon token validation failed:', response.status);
-      return res.json({ 
-        valid: false, 
-        message: `Token validation failed: ${response.status}`,
-        status: response.status
-      });
-    }
-    
-    const tokenInfo = await response.json();
-    console.log('✅ Token validation successful');
-    
-    res.json({
-      valid: true,
-      message: 'Token is valid',
-      tokenInfo: {
-        client_id: tokenInfo.aud,
-        expires_in: tokenInfo.expires_in,
-        scope: tokenInfo.scope,
-        token_type: tokenInfo.token_type
-      },
-      tokenSource: req.query.token ? 'query-parameter' : 'fixed-storage-key'
-    });
-    
-  } catch (error) {
-    console.error('💥 Token verification error:', error.message);
-    res.status(500).json({ 
-      valid: false, 
-      message: 'Internal server error during verification',
-      error: error.message 
-    });
-  }
-});
-
-// Simple token status endpoint
-// Simple token status endpoint - use fixed key
-app.get('/api/alexa/status', (req, res) => {
-  const storageKey = 'alexa_main_tokens';
-  const accessToken = alexaUserSessions.get(storageKey);
-  
-  res.json({ 
-    connected: !!accessToken,
-    hasToken: !!accessToken,
-    token: accessToken, // This returns the actual token
-    storageKey: storageKey
-  });
-});
-
-// Detailed token debug endpoint
-app.get('/api/debug/token-details', (req, res) => {
-  const accessToken = alexaUserSessions.get(req.sessionID);
-  
-  const result = {
-    sessionId: req.sessionID,
-    hasAccessToken: !!accessToken,
-    accessTokenLength: accessToken ? accessToken.length : 0,
-    accessTokenPreview: accessToken ? `${accessToken.substring(0, 10)}...${accessToken.substring(accessToken.length - 5)}` : null,
-    allSessions: Array.from(alexaUserSessions.entries()).map(([sessionId, token]) => ({
-      sessionId: sessionId,
-      hasToken: !!token,
-      tokenLength: token ? token.length : 0,
-      isCurrentSession: sessionId === req.sessionID
-    })),
-    totalSessions: alexaUserSessions.size
-  };
-  
-  res.json(result);
-});
-
-// Simple tokens debug endpoint
-app.get('/api/debug/simple-tokens', (req, res) => {
-  const accessToken = alexaUserSessions.get(req.sessionID);
-  
-  const result = {
-    currentSessionId: req.sessionID,
-    hasToken: !!accessToken,
-    tokenLength: accessToken ? accessToken.length : 0,
-    tokenPreview: accessToken ? `${accessToken.substring(0, 10)}...${accessToken.substring(accessToken.length - 5)}` : null,
-    totalSessions: alexaUserSessions.size,
-    allSessionIds: Array.from(alexaUserSessions.keys())
-  };
-  
-  console.log('Token debug:', result);
-  res.json(result);
-});
-
-// Transfer Alexa tokens between sessions
-app.post('/api/alexa/transfer-session', (req, res) => {
-  // Get the session ID from the callback (you'll need to store this temporarily)
-  const callbackSessionId = req.body.callbackSessionId;
-  
-  if (!callbackSessionId) {
-    return res.json({ success: false, message: 'No callback session ID provided' });
-  }
-  
-  // Get tokens from callback session
-  const accessToken = alexaUserSessions.get(callbackSessionId);
-  const refreshToken = alexaRefreshTokens.get(callbackSessionId);
-  
-  if (!accessToken) {
-    return res.json({ success: false, message: 'No tokens found in callback session' });
-  }
-  
-  // Transfer to current session
-  alexaUserSessions.set(req.sessionID, accessToken);
-  if (refreshToken) {
-    alexaRefreshTokens.set(req.sessionID, refreshToken);
-  }
-  
-  console.log('✅ Tokens transferred from session:', callbackSessionId, 'to:', req.sessionID);
-  
-  res.json({ 
-    success: true, 
-    message: 'Tokens transferred successfully',
-    fromSession: callbackSessionId,
-    toSession: req.sessionID
-  });
-});
-
-// Add this endpoint to clear all Alexa tokens
-app.post('/api/alexa/clear-tokens', (req, res) => {
-  try {
-    console.log('🧹 Clearing all Alexa tokens...');
-    
-    // Clear all stored tokens
-    alexaUserSessions.clear();
-    alexaRefreshTokens.clear();
-    
-    console.log('✅ All tokens cleared');
-    res.json({ 
-      success: true, 
-      message: 'All Alexa tokens cleared successfully',
-      sessionsCleared: alexaUserSessions.size,
-      refreshTokensCleared: alexaRefreshTokens.size
-    });
-    
-  } catch (error) {
-    console.error('Error clearing tokens:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error clearing tokens: ' + error.message 
-    });
-  }
-});
-
-// Add this function to your server
-
-// Add these debug endpoints to your server code
-
-// Debug endpoint to check refresh token status
-app.get('/api/debug/refresh-status', (req, res) => {
-  const storageKey = 'alexa_main_tokens';
-  const refreshToken = alexaRefreshTokens.get(storageKey);
-  
-  res.json({
-    hasRefreshToken: !!refreshToken,
-    refreshTokenLength: refreshToken ? refreshToken.length : 0,
-    refreshTokenPreview: refreshToken ? `${refreshToken.substring(0, 10)}...${refreshToken.substring(refreshToken.length - 5)}` : null,
-    storageKey: storageKey
-  });
-});
-
-// Debug endpoint to check both tokens
-app.get('/api/debug/token-status', (req, res) => {
-  const storageKey = 'alexa_main_tokens';
-  const accessToken = alexaUserSessions.get(storageKey);
-  const refreshToken = alexaRefreshTokens.get(storageKey);
-  
-  res.json({
-    accessToken: {
-      exists: !!accessToken,
-      length: accessToken ? accessToken.length : 0,
-      preview: accessToken ? `${accessToken.substring(0, 10)}...` : null
-    },
-    refreshToken: {
-      exists: !!refreshToken,
-      length: refreshToken ? refreshToken.length : 0,
-      preview: refreshToken ? `${refreshToken.substring(0, 10)}...` : null
-    },
-    storageKey: storageKey
-  });
-});
-
-
-
-// Add these debug endpoints to your server code
-
-// Debug endpoint to check environment configuration
-app.get('/api/debug/config', (req, res) => {
-  res.json({
-    LWA_CLIENT_ID: process.env.LWA_CLIENT_ID ? 'SET' : 'MISSING',
-    LWA_CLIENT_SECRET: process.env.LWA_CLIENT_SECRET ? 'SET' : 'MISSING',
-    CLIENT_ID_MATCH: process.env.LWA_CLIENT_ID === 'amzn1.application-oa2-client.f9243e52c93a47ac9c91ef9b89e7ac60',
-    NODE_ENV: process.env.NODE_ENV,
-    RAILWAY_URL: process.env.RAILWAY_URL
-  });
-});
-
-// Debug endpoint to check token storage
-app.get('/api/debug/token-storage', (req, res) => {
-  const storageKey = 'alexa_main_tokens';
-  res.json({
-    accessToken: alexaUserSessions.get(storageKey) ? 'EXISTS' : 'MISSING',
-    refreshToken: alexaRefreshTokens.get(storageKey) ? 'EXISTS' : 'MISSING',
-    storageKey: storageKey,
-    alexaSessionsSize: alexaUserSessions.size,
-    alexaRefreshSize: alexaRefreshTokens.size
-  });
-});
-
-// Debug endpoint to test Amazon token validation
-app.get('/api/debug/test-amazon', async (req, res) => {
-  try {
-    const storageKey = 'alexa_main_tokens';
-    const token = alexaUserSessions.get(storageKey);
-    
-    if (!token) {
-      return res.json({ error: 'No token available' });
-    }
-    
-    // Test with Amazon directly
-    const response = await fetch(`https://api.amazon.com/auth/o2/tokeninfo?access_token=${token}`);
-    const data = await response.json();
-    
-    res.json({
-      amazonStatus: response.status,
-      amazonResponse: data,
-      tokenPreview: token.substring(0, 20) + '...'
-    });
-    
-  } catch (error) {
-    res.json({ error: error.message });
-  }
-});
 
 // ===================== END ALEXA LOGIC =====================
 
