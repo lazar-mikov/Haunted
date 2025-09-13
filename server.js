@@ -119,7 +119,6 @@ async function refreshAlexaToken() {
 
 // ===================== ALEXA SMART HOME LOGIC =====================
 
-import { Client } from 'tplink-smarthome-api';
 
 const client = new Client();
 
