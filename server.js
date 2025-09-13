@@ -5,7 +5,9 @@ import dotenv from "dotenv";
 import crypto from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
-import { Client } from 'tplink-smarthome-api';
+// ESM-compatible import from a CommonJS module
+import pkg from 'tplink-smarthome-api';
+const { Client } = pkg;
 
 dotenv.config();
 
