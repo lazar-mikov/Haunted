@@ -537,7 +537,6 @@ app.get('/api/alexa/status', (req, res) => {
   }
 });
 
-async function getAlexaDevices(accessToken) {
   try {
     console.log('🔍 Getting user devices via SMAPI...');
     const response = await axios.get('https://api.amazonalexa.com/v1/devices', {
@@ -577,7 +576,7 @@ async function getAlexaDevices(accessToken) {
     
     return [];
   }
-}
+
 
 
 // [REST OF YOUR EXISTING CODE REMAINS UNCHANGED - IFTTT,
