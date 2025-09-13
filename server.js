@@ -525,6 +525,60 @@ app.get('/auth/alexa/callback', async (req, res) => {
   }
 });
 
+// Add this route to check Alexa connection status
+app.get('/api/alexa/status', (req, res) => {
+  const storageKey = 'alexa_main_tokens';
+  const accessToken = alexaUserSessions.get(storageKey);
+  
+  if (accessToken) {
+    res.json({ connected: true, hasToken: true });
+  } else {
+    res.json({ connected: false, hasToken: false });
+  }
+});
+
+async function getAlexaDevices(accessToken) {
+  try {
+    console.log('🔍 Getting user devices via SMAPI...');
+    const response = await axios.get('https://api.amazonalexa.com/v1/devices', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      },
+      timeout: 10000 // Add timeout
+    });
+    
+    // Check if response contains valid data
+    if (!response.data || !response.data.devices) {
+      console.log('⚠️ No devices found in response');
+      return [];
+    }
+    
+    // Filter for lights and plugs only
+    const lightDevices = response.data.devices.filter(device => 
+      device.deviceType === 'AUTO' ||
+      device.deviceType === 'LIGHT' ||
+      device.deviceType === 'PLUG' ||
+      device.deviceType === 'SMARTPLUG' ||
+      (device.capabilities && device.capabilities.some(cap => 
+        cap.interface === 'Alexa.PowerController'
+      ))
+    );
+    
+    console.log(`✅ Found ${lightDevices.length} controllable devices`);
+    return lightDevices;
+  } catch (error) {
+    console.error('❌ Failed to get user devices:', error.message);
+    
+    // Check if it's a temporary server error
+    if (error.response && error.response.status >= 500) {
+      console.log('⚠️ Alexa service temporarily unavailable, will retry later');
+      // You might want to implement a retry mechanism here
+    }
+    
+    return [];
+  }
+}
+
 
 // [REST OF YOUR EXISTING CODE REMAINS UNCHANGED - IFTTT,
 
