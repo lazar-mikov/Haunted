@@ -467,6 +467,83 @@ app.post('/api/setup-routines', async (req, res) => {
   }
 });
 
+// Add this endpoint to test routine creation
+app.post('/api/test-routine', async (req, res) => {
+  try {
+    const storageKey = 'alexa_main_tokens';
+    const accessToken = alexaUserSessions.get(storageKey);
+    
+    if (!accessToken) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'No access token found. Please connect to Alexa first.' 
+      });
+    }
+    
+    // Get a device to use in the routine
+    const devices = await getAlexaDevices(accessToken);
+    if (devices.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No devices found to create routine with'
+      });
+    }
+    
+    const targetDevice = devices[0];
+    
+    // Create a simple test routine
+    const routineData = {
+      name: "Test Routine - Haunted House",
+      trigger: {
+        type: "SmartHome.DeviceActivation",
+        payload: {
+          device: {
+            deviceId: "haunted-blackout", // Your virtual device
+            type: "Alexa.Scene"
+          },
+          activation: {
+            type: "TURN_ON",
+            value: "true"
+          }
+        }
+      },
+      actions: [
+        {
+          type: "SmartHome.Control",
+          parameters: {
+            devices: [targetDevice.deviceId],
+            action: "turnOff"
+          }
+        }
+      ]
+    };
+    
+    console.log('Creating test routine:', JSON.stringify(routineData, null, 2));
+    
+    const response = await axios.post('https://api.amazonalexa.com/v1/routines', routineData, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 15000
+    });
+    
+    res.json({
+      success: true,
+      message: 'Test routine created successfully!',
+      routineId: response.data.id,
+      targetDevice: targetDevice.friendlyName
+    });
+  } catch (error) {
+    console.error('Routine creation test failed:', error.response?.data || error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Routine creation test failed',
+      error: error.response?.data || error.message
+    });
+  }
+});
+
 // ===================== AUTHENTICATION (UPDATED SCOPES) =====================
 app.post('/api/alexa/handle-grant', async (req, res) => {
   try {
