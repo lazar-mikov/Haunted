@@ -123,6 +123,8 @@ async function refreshAlexaToken() {
 const client = new Client();
 
 // Discover Tapo devices on your network
+
+// Discover Tapo devices on your network
 async function discoverTapoLamps() {
   try {
     console.log('🔍 Discovering Tapo devices...');
@@ -155,7 +157,6 @@ async function discoverTapoLamps() {
               version: "3",
               properties: { supported: [{ name: "brightness" }], proactivelyReported: true, retrievable: true }
             }
-            // Add ColorController if your bulbs support color
           ]
         });
       }
@@ -171,7 +172,8 @@ async function discoverTapoLamps() {
 // Control Tapo bulb
 async function controlTapoBulb(deviceId, powerOn) {
   try {
-    // Find device by ID
+    console.log(`💡 Controlling Tapo bulb ${deviceId}: ${powerOn ? 'ON' : 'OFF'}`);
+    
     const devices = await client.startDiscovery({
       deviceTypes: ['bulb'],
       discoveryTimeout: 5000
@@ -186,10 +188,12 @@ async function controlTapoBulb(deviceId, powerOn) {
     console.log(`✅ Tapo bulb ${deviceId} turned ${powerOn ? 'ON' : 'OFF'}`);
     return true;
   } catch (error) {
-    console.error('Tapo control failed:', error);
+    console.error('❌ Tapo control failed:', error);
     return false;
   }
 }
+
+
 
 // Alexa Smart Home endpoint
 app.post('/alexa/smarthome', async (req, res) => {
@@ -363,60 +367,7 @@ async function handleAlexaDiscovery(directive, res) {
   }
 }
 
-// Add this function to discover Tapo bulbs
-async function discoverTapoLamps() {
-  try {
-    const { Client } = require('tplink-smarthome-api');
-    const client = new Client();
-    
-    console.log('🔍 Discovering Tapo devices...');
-    
-    const devices = await client.startDiscovery({
-      deviceTypes: ['bulb'],
-      discoveryTimeout: 10000
-    });
 
-    const tapoEndpoints = [];
-    
-    devices.forEach(device => {
-      tapoEndpoints.push({
-        endpointId: `tapo-bulb-${device.deviceId}`,
-        manufacturerName: 'TP-Link',
-        friendlyName: device.name || `Tapo Bulb ${device.deviceId}`,
-        description: 'Tapo Smart Bulb',
-        displayCategories: ['LIGHT'],
-        capabilities: [
-          {
-            type: "AlexaInterface",
-            interface: "Alexa.PowerController",
-            version: "3",
-            properties: { 
-              supported: [{ name: "powerState" }], 
-              proactivelyReported: true, 
-              retrievable: true 
-            }
-          },
-          {
-            type: "AlexaInterface", 
-            interface: "Alexa.BrightnessController",
-            version: "3",
-            properties: { 
-              supported: [{ name: "brightness" }], 
-              proactivelyReported: true, 
-              retrievable: true 
-            }
-          }
-          // Add more capabilities if your bulbs support color, etc.
-        ]
-      });
-    });
-
-    return tapoEndpoints;
-  } catch (error) {
-    console.error('Tapo discovery failed:', error);
-    return []; // Return empty array if discovery fails
-  }
-}
 
 app.post('/api/trigger-direct', (req, res) => {
   const { effect } = req.body;
