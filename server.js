@@ -264,6 +264,21 @@ function handleAlexaDiscovery(directive, res) {
   }
 }
 
+app.post('/api/trigger-direct', (req, res) => {
+  const { effect } = req.body;
+  console.log('🎭 Direct effect trigger:', effect);
+  
+  // Add your DIRECT light control logic here
+  // This is where you talk to your lights/hardware directly
+  // NOT through Voice Monkey
+  
+  res.json({ 
+    success: true, 
+    message: `Direct trigger: ${effect}`,
+    effect: effect
+  });
+});
+
 // Alexa power control handler
 function handleAlexaPowerControl(directive, res) {
   const { endpointId, name } = directive.endpoint.endpointId;
@@ -271,12 +286,16 @@ function handleAlexaPowerControl(directive, res) {
   
   // Trigger your existing effect system
   if (name === 'TurnOn') {
-    axios.post(`http://localhost:${process.env.PORT || 3000}/api/trigger`, {
+    axios.post(`http://localhost:${process.env.PORT || 3000}/api/trigger-direct`, {
       effect: effect
     }, {
       timeout: 3000
-    }).catch(error => {
-      console.log('Effect triggered via Alexa, but internal call failed:', error.message);
+})
+.then(response => {
+  console.log('✅ Direct trigger successful:', response.data);
+})
+.catch(error => {
+  console.log('❌ Direct trigger failed:', error.message);
     });
   }
   
