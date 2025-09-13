@@ -279,49 +279,65 @@ app.post('/api/trigger-direct', (req, res) => {
   });
 });
 
-// Alexa power control handler
-function handleAlexaPowerControl(directive, res) {
-  const { endpointId, name } = directive.endpoint.endpointId;
-  const effect = endpointId.replace('haunted-', '');
-  
-  // Trigger your existing effect system
-  if (name === 'TurnOn') {
-    axios.post(`http://localhost:${process.env.PORT || 3000}/api/trigger-direct`, {
-      effect: effect
-    }, {
-      timeout: 3000
-})
-.then(response => {
-  console.log('✅ Direct trigger successful:', response.data);
-})
-.catch(error => {
-  console.log('❌ Direct trigger failed:', error.message);
+// Alexa power control handler - IMPROVED VERSION
+async function handleAlexaPowerControl(directive, res) {
+  try {
+    const endpointId = directive.endpoint.endpointId;
+    const { name } = directive.header;
+    const effect = endpointId.replace('haunted-', '');
+    
+    console.log(`🎭 Alexa controlling: ${endpointId}, action: ${name}, effect: ${effect}`);
+    
+    // Only trigger effects for TurnOn commands
+    if (name === 'TurnOn') {
+      try {
+        const triggerResponse = await axios.post(
+          `${process.env.RAILWAY_URL || 'http://localhost:3000'}/api/trigger-direct`,
+          { effect: effect },
+          { timeout: 5000 }
+        );
+        
+        console.log('✅ Direct trigger successful:', triggerResponse.data);
+      } catch (triggerError) {
+        console.error('❌ Direct trigger failed:', triggerError.message);
+        // Continue with Alexa response even if hardware fails
+      }
+    }
+    
+    // Response to Alexa
+    const response = {
+      event: {
+        header: {
+          namespace: "Alexa",
+          name: "Response",
+          messageId: directive.header.messageId,
+          payloadVersion: "3",
+          correlationToken: directive.header.correlationToken
+        },
+        endpoint: directive.endpoint,
+        payload: {}
+      },
+      context: {
+        properties: [{
+          namespace: "Alexa.PowerController",
+          name: "powerState",
+          value: name === 'TurnOn' ? "ON" : "OFF",
+          timeOfSample: new Date().toISOString(),
+          uncertaintyInMilliseconds: 500
+        }]
+      }
+    };
+    
+    console.log('📤 Sending Alexa response:', JSON.stringify(response, null, 2));
+    res.json(response);
+    
+  } catch (error) {
+    console.error('💥 Error in handleAlexaPowerControl:', error);
+    res.status(500).json({ 
+      error: 'INTERNAL_ERROR',
+      message: error.message 
     });
   }
-  
-  // Response to Alexa
-  res.json({
-    event: {
-      header: {
-        namespace: "Alexa",
-        name: "Response",
-        messageId: directive.header.messageId,
-        payloadVersion: "3",
-        correlationToken: directive.header.correlationToken
-      },
-      endpoint: directive.endpoint,
-      payload: {}
-    },
-    context: {
-      properties: [{
-        namespace: "Alexa.PowerController",
-        name: "powerState",
-        value: name === 'TurnOn' ? "ON" : "OFF",
-        timeOfSample: new Date().toISOString(),
-        uncertaintyInMilliseconds: 500
-      }]
-    }
-  });
 }
 
 // Validate Alexa access token with Amazon
