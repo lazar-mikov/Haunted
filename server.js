@@ -201,8 +201,12 @@ async function setupAutomaticRoutines(accessToken) {
 
 // ===================== ALEXA HANDLERS =====================
 async function handleAlexaDiscovery(directive, res) {
+  console.log('🎯 Discovery request received:', JSON.stringify(directive, null, 2));
+  
   if (directive.header.name === 'Discover') {
     try {
+      console.log('🔍 Starting device discovery...');
+      
       const virtualEndpoints = [
         {
           endpointId: "haunted-blackout",
@@ -273,8 +277,10 @@ async function handleAlexaDiscovery(directive, res) {
           }]
         }
       ];
+
+      console.log(`📋 Prepared ${virtualEndpoints.length} virtual endpoints`);
       
-      res.json({
+      const response = {
         event: {
           header: {
             namespace: "Alexa.Discovery",
@@ -284,13 +290,114 @@ async function handleAlexaDiscovery(directive, res) {
           },
           payload: { endpoints: virtualEndpoints }
         }
-      });
+      };
+
+      console.log('📤 Sending discovery response:', JSON.stringify(response, null, 2));
+      res.json(response);
+      
     } catch (error) {
-      console.error('Discovery failed:', error);
-      res.status(500).json({ error: 'Discovery failed' });
+      console.error('❌ Discovery failed:', error);
+      res.status(500).json({ 
+        error: 'Discovery failed',
+        message: error.message,
+        stack: error.stack 
+      });
     }
+  } else {
+    console.warn('⚠️ Received unknown directive:', directive.header.name);
+    res.status(400).json({ error: 'Unknown directive' });
   }
 }
+
+
+// Add this test endpoint for discovery debugging
+app.get('/debug/discovery', (req, res) => {
+  console.log('🔍 Debug discovery endpoint called');
+  
+  const testResponse = {
+    event: {
+      header: {
+        namespace: "Alexa.Discovery",
+        name: "Discover.Response",
+        messageId: "debug-message-123",
+        payloadVersion: "3"
+      },
+      payload: {
+        endpoints: [
+          {
+            endpointId: "test-blackout",
+            manufacturerName: "Haunted House",
+            friendlyName: "Test Blackout Effect",
+            description: "Test device for discovery debugging",
+            displayCategories: ["SWITCH"],
+            capabilities: [
+              {
+                type: "AlexaInterface",
+                interface: "Alexa.PowerController",
+                version: "3",
+                properties: {
+                  supported: [{ name: "powerState" }],
+                  proactivelyReported: true,
+                  retrievable: true
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  };
+  
+  console.log('📤 Sending test discovery response');
+  res.json(testResponse);
+});
+
+app.post('/debug/discovery', (req, res) => {
+  console.log('🔍 POST Debug discovery called with body:', JSON.stringify(req.body, null, 2));
+  // Return the same response as the GET endpoint
+  app.get('/debug/discovery', (req, res) => {
+    console.log('🔍 Debug discovery endpoint called');
+    
+    const testResponse = {
+      event: {
+        header: {
+          namespace: "Alexa.Discovery",
+          name: "Discover.Response",
+          messageId: "debug-message-123",
+          payloadVersion: "3"
+        },
+        payload: {
+          endpoints: [
+            {
+              endpointId: "test-blackout",
+              manufacturerName: "Haunted House",
+              friendlyName: "Test Blackout Effect",
+              description: "Test device for discovery debugging",
+              displayCategories: ["SWITCH"],
+              capabilities: [
+                {
+                  type: "AlexaInterface",
+                  interface: "Alexa.PowerController",
+                  version: "3",
+                  properties: {
+                    supported: [{ name: "powerState" }],
+                    proactivelyReported: true,
+                    retrievable: true
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    };
+    
+    console.log('📤 Sending test discovery response');
+    res.json(testResponse);
+  });
+});
+
+
 
 async function handleAlexaPowerControl(directive, res) {
   try {
@@ -346,6 +453,88 @@ async function handleAlexaPowerControl(directive, res) {
     return res.status(500).json({ error: 'INTERNAL_ERROR', message: error.message });
   }
 }
+
+// Add this test endpoint to your server code
+app.post('/test-discovery', (req, res) => {
+  console.log('Discovery test called with body:', JSON.stringify(req.body, null, 2));
+  
+  // Simulate a valid discovery response
+  const response = {
+    event: {
+      header: {
+        namespace: "Alexa.Discovery",
+        name: "Discover.Response",
+        messageId: "test-message-123",
+        payloadVersion: "3"
+      },
+      payload: {
+        endpoints: [
+          {
+            endpointId: "test-blackout",
+            manufacturerName: "Haunted House",
+            friendlyName: "Test Blackout Effect",
+            description: "Test device for discovery",
+            displayCategories: ["SWITCH"],
+            capabilities: [
+              {
+                type: "AlexaInterface",
+                interface: "Alexa.PowerController",
+                version: "3",
+                properties: {
+                  supported: [{ name: "powerState" }],
+                  proactivelyReported: true,
+                  retrievable: true
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  };
+  
+  console.log('Sending discovery response:', JSON.stringify(response, null, 2));
+  res.json(response);
+});
+
+// Also add a GET endpoint for easy testing in browser
+app.get('/test-discovery', (req, res) => {
+  const response = {
+    event: {
+      header: {
+        namespace: "Alexa.Discovery",
+        name: "Discover.Response",
+        messageId: "test-message-123",
+        payloadVersion: "3"
+      },
+      payload: {
+        endpoints: [
+          {
+            endpointId: "test-blackout",
+            manufacturerName: "Haunted House",
+            friendlyName: "Test Blackout Effect",
+            description: "Test device for discovery",
+            displayCategories: ["SWITCH"],
+            capabilities: [
+              {
+                type: "AlexaInterface",
+                interface: "Alexa.PowerController",
+                version: "3",
+                properties: {
+                  supported: [{ name: "powerState" }],
+                  proactivelyReported: true,
+                  retrievable: true
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  };
+  
+  res.json(response);
+});
 
 // ===================== ROUTES =====================
 app.post('/alexa/smarthome', async (req, res) => {
