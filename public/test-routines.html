@@ -1,64 +1,628 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Test Alexa Routines</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alexa Horror Experience - Debug Dashboard</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        button { padding: 10px 15px; margin: 5px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; }
-        button:disabled { background: #ccc; }
-        .result { margin: 15px 0; padding: 10px; border-radius: 4px; }
-        .success { background: #d4edda; color: #155724; }
-        .error { background: #f8d7da; color: #721c24; }
+        :root {
+            --primary: #232f3e;
+            --secondary: #ff9900;
+            --accent: #ea4d3d;
+            --light: #f2f2f2;
+            --dark: #131a22;
+            --success: #00a878;
+            --warning: #ff9900;
+            --error: #ea4d3d;
+            --info: #3498db;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, var(--dark), #000);
+            color: var(--light);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--secondary);
+            text-shadow: 0 0 10px rgba(255, 153, 0, 0.5);
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            color: #ccc;
+            margin-bottom: 2rem;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .card {
+            background: rgba(35, 47, 62, 0.8);
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .card-icon {
+            font-size: 1.5rem;
+            margin-right: 0.75rem;
+        }
+        
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        
+        .status-badge {
+            margin-left: auto;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .status-connected {
+            background: var(--success);
+            color: white;
+        }
+        
+        .status-disconnected {
+            background: var(--error);
+            color: white;
+        }
+        
+        .status-warning {
+            background: var(--warning);
+            color: black;
+        }
+        
+        .status-info {
+            background: var(--info);
+            color: white;
+        }
+        
+        .card-content {
+            line-height: 1.6;
+        }
+        
+        .card-content pre {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1rem;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .btn {
+            display: inline-block;
+            background: var(--secondary);
+            color: var(--dark);
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 5px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 1rem;
+            text-decoration: none;
+        }
+        
+        .btn:hover {
+            background: #ffaa00;
+            box-shadow: 0 0 15px rgba(255, 153, 0, 0.4);
+        }
+        
+        .btn-secondary {
+            background: var(--info);
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #2980b9;
+        }
+        
+        .btn-error {
+            background: var(--error);
+            color: white;
+        }
+        
+        .btn-error:hover {
+            background: #c0392b;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 1rem 0;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid var(--secondary);
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .log-output {
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 5px;
+            padding: 1rem;
+            margin-top: 2rem;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+        
+        .log-entry {
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .log-time {
+            color: #999;
+            margin-right: 0.5rem;
+        }
+        
+        .log-info {
+            color: var(--info);
+        }
+        
+        .log-success {
+            color: var(--success);
+        }
+        
+        .log-warning {
+            color: var(--warning);
+        }
+        
+        .log-error {
+            color: var(--error);
+        }
+        
+        .section {
+            margin-bottom: 2rem;
+        }
+        
+        .section-title {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--secondary);
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        footer {
+            margin-top: 2rem;
+            text-align: center;
+            font-size: 0.9rem;
+            color: #999;
+        }
+        
+        .device-list {
+            list-style: none;
+        }
+        
+        .device-item {
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .device-icon {
+            margin-right: 0.75rem;
+            font-size: 1.2rem;
+        }
+        
+        .device-info {
+            flex: 1;
+        }
+        
+        .device-name {
+            font-weight: 600;
+        }
+        
+        .device-type {
+            font-size: 0.8rem;
+            color: #999;
+        }
     </style>
 </head>
 <body>
-    <h1>Test Alexa Routines Integration</h1>
+    <header>
+        <h1>Alexa Horror Experience</h1>
+        <p class="subtitle">Debug Dashboard - Connection & Discovery Status</p>
+    </header>
     
-    <div>
-        <button onclick="testConnection()">Test Alexa Connection</button>
-        <button onclick="testRoutine()">Test Routine Creation</button>
-        <button onclick="checkStatus()">Check Connection Status</button>
+    <div class="dashboard">
+        <div class="card">
+            <div class="card-header">
+                <div class="card-icon">🔌</div>
+                <div class="card-title">Alexa Connection</div>
+                <div id="connectionStatus" class="status-badge status-disconnected">Disconnected</div>
+            </div>
+            <div class="card-content">
+                <p>Check if your server is connected to Alexa's services and can authenticate requests.</p>
+                <button id="checkConnection" class="btn">Check Connection Status</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <div class="card-icon">🔍</div>
+                <div class="card-title">Device Discovery</div>
+                <div id="discoveryStatus" class="status-badge status-info">Not Tested</div>
+            </div>
+            <div class="card-content">
+                <p>Test if Alexa can discover your virtual devices. This is critical for routine creation.</p>
+                <button id="testDiscovery" class="btn">Test Discovery</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <div class="card-icon">⚙️</div>
+                <div class="card-title">API Test</div>
+                <div id="apiStatus" class="status-badge status-info">Not Tested</div>
+            </div>
+            <div class="card-content">
+                <p>Test the connection to Alexa's API endpoints to verify your access tokens are working.</p>
+                <button id="testApi" class="btn">Test API Connection</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <div class="card-icon">🔄</div>
+                <div class="card-title">Routine Setup</div>
+                <div id="routineStatus" class="status-badge status-info">Not Tested</div>
+            </div>
+            <div class="card-content">
+                <p>Attempt to automatically create routines for the horror experience effects.</p>
+                <button id="setupRoutines" class="btn">Setup Routines</button>
+            </div>
+        </div>
     </div>
     
-    <div id="result"></div>
+    <div class="section">
+        <h2 class="section-title">Debug Information</h2>
+        
+        <div class="card">
+            <div class="card-header">
+                <div class="card-icon">📋</div>
+                <div class="card-title">Connection Details</div>
+            </div>
+            <div class="card-content">
+                <div id="connectionDetails">
+                    <p>Run a connection test to see details here.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <div class="card-icon">📱</div>
+                <div class="card-title">Discovered Devices</div>
+            </div>
+            <div class="card-content">
+                <div id="devicesList">
+                    <p>Run a discovery test to see devices here.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <div class="card-icon">📝</div>
+                <div class="card-title">Activity Log</div>
+            </div>
+            <div class="card-content">
+                <div class="log-output" id="logOutput">
+                    <div class="log-entry">
+                        <span class="log-time">[00:00:00]</span>
+                        <span class="log-info">Dashboard initialized. Ready to run tests.</span>
+                    </div>
+                </div>
+                <button id="clearLog" class="btn btn-secondary">Clear Log</button>
+            </div>
+        </div>
+    </div>
     
+    <div class="loading" id="globalLoading">
+        <div class="spinner"></div>
+        <p>Processing request...</p>
+    </div>
+    
+    <footer>
+        <p>Alexa Horror Experience Debug Dashboard &copy; 2023 | Server: <span id="serverUrl">Unknown</span></p>
+    </footer>
+
     <script>
-        async function testConnection() {
-            showResult('Testing connection...');
-            try {
-                const response = await fetch('/api/test-alexa-connection');
-                const data = await response.json();
-                showResult(data.message, data.success);
-            } catch (error) {
-                showResult('Connection test failed: ' + error.message, false);
+        document.addEventListener('DOMContentLoaded', function() {
+            const logOutput = document.getElementById('logOutput');
+            const serverUrl = window.location.origin;
+            document.getElementById('serverUrl').textContent = serverUrl;
+            
+            // Add initial log entry
+            addLog('Dashboard initialized. Ready to run tests.', 'info');
+            
+            // Check initial connection status
+            checkInitialStatus();
+            
+            // Set up event listeners
+            document.getElementById('checkConnection').addEventListener('click', checkConnectionStatus);
+            document.getElementById('testDiscovery').addEventListener('click', testDiscovery);
+            document.getElementById('testApi').addEventListener('click', testApiConnection);
+            document.getElementById('setupRoutines').addEventListener('click', setupRoutines);
+            document.getElementById('clearLog').addEventListener('click', clearLog);
+            
+            // Check initial connection status
+            async function checkInitialStatus() {
+                try {
+                    const response = await fetch('/api/alexa/status');
+                    if (response.ok) {
+                        const data = await response.json();
+                        updateConnectionStatus(data.connected);
+                        
+                        if (data.connected) {
+                            addLog('Initial check: Connected to Alexa', 'success');
+                        } else {
+                            addLog('Initial check: Not connected to Alexa', 'warning');
+                        }
+                    }
+                } catch (error) {
+                    addLog('Initial check failed: ' + error.message, 'error');
+                }
             }
-        }
-        
-        async function testRoutine() {
-            showResult('Testing routine creation...');
-            try {
-                const response = await fetch('/api/test-routine', { method: 'POST' });
-                const data = await response.json();
-                showResult(data.message, data.success);
-            } catch (error) {
-                showResult('Routine test failed: ' + error.message, false);
+            
+            // Check connection status
+            async function checkConnectionStatus() {
+                showLoading(true);
+                addLog('Checking connection status...', 'info');
+                
+                try {
+                    const response = await fetch('/api/alexa/status');
+                    if (response.ok) {
+                        const data = await response.json();
+                        updateConnectionStatus(data.connected);
+                        
+                        let detailsHtml = `
+                            <p><strong>Connected:</strong> ${data.connected ? 'Yes' : 'No'}</p>
+                            <p><strong>Has Access Token:</strong> ${data.hasAccessToken ? 'Yes' : 'No'}</p>
+                            <p><strong>Has Refresh Token:</strong> ${data.hasRefreshToken ? 'Yes' : 'No'}</p>
+                        `;
+                        
+                        document.getElementById('connectionDetails').innerHTML = detailsHtml;
+                        
+                        if (data.connected) {
+                            addLog('Connection status: Connected to Alexa', 'success');
+                        } else {
+                            addLog('Connection status: Not connected to Alexa', 'warning');
+                        }
+                    } else {
+                        throw new Error('Server returned error: ' + response.status);
+                    }
+                } catch (error) {
+                    addLog('Connection check failed: ' + error.message, 'error');
+                    updateConnectionStatus(false);
+                } finally {
+                    showLoading(false);
+                }
             }
-        }
-        
-        async function checkStatus() {
-            try {
-                const response = await fetch('/api/alexa/status');
-                const data = await response.json();
-                showResult(`Connected: ${data.connected}, Has Token: ${data.hasToken}`, data.connected);
-            } catch (error) {
-                showResult('Status check failed: ' + error.message, false);
+            
+            // Test discovery
+            async function testDiscovery() {
+                showLoading(true);
+                addLog('Testing discovery endpoint...', 'info');
+                
+                try {
+                    // Test both GET and POST endpoints
+                    const getResponse = await fetch('/debug/discovery');
+                    const postResponse = await fetch('/test-discovery', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            directive: {
+                                header: {
+                                    namespace: "Alexa.Discovery",
+                                    name: "Discover",
+                                    messageId: "test-message-123",
+                                    payloadVersion: "3"
+                                },
+                                payload: {}
+                            }
+                        })
+                    });
+                    
+                    if (getResponse.ok && postResponse.ok) {
+                        const getData = await getResponse.json();
+                        const postData = await postResponse.json();
+                        
+                        document.getElementById('discoveryStatus').className = 'status-badge status-success';
+                        document.getElementById('discoveryStatus').textContent = 'Working';
+                        
+                        // Display discovered devices
+                        let devicesHtml = '<ul class="device-list">';
+                        
+                        if (getData.event && getData.event.payload && getData.event.payload.endpoints) {
+                            getData.event.payload.endpoints.forEach(endpoint => {
+                                devicesHtml += `
+                                    <li class="device-item">
+                                        <div class="device-icon">💡</div>
+                                        <div class="device-info">
+                                            <div class="device-name">${endpoint.friendlyName}</div>
+                                            <div class="device-type">${endpoint.endpointId}</div>
+                                        </div>
+                                    </li>
+                                `;
+                            });
+                        }
+                        
+                        devicesHtml += '</ul>';
+                        document.getElementById('devicesList').innerHTML = devicesHtml;
+                        
+                        addLog('Discovery test successful. Found ' + 
+                            (getData.event.payload.endpoints.length + postData.event.payload.endpoints.length) + 
+                            ' endpoints total', 'success');
+                    } else {
+                        throw new Error('Discovery endpoints returned errors');
+                    }
+                } catch (error) {
+                    addLog('Discovery test failed: ' + error.message, 'error');
+                    document.getElementById('discoveryStatus').className = 'status-badge status-error';
+                    document.getElementById('discoveryStatus').textContent = 'Failed';
+                } finally {
+                    showLoading(false);
+                }
             }
-        }
-        
-        function showResult(message, isSuccess) {
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = `<div class="result ${isSuccess ? 'success' : 'error'}">${message}</div>`;
-        }
+            
+            // Test API connection
+            async function testApiConnection() {
+                showLoading(true);
+                addLog('Testing Alexa API connection...', 'info');
+                
+                try {
+                    const response = await fetch('/api/test-alexa-connection');
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            document.getElementById('apiStatus').className = 'status-badge status-success';
+                            document.getElementById('apiStatus').textContent = 'Connected';
+                            addLog('API test successful: ' + data.message, 'success');
+                        } else {
+                            document.getElementById('apiStatus').className = 'status-badge status-error';
+                            document.getElementById('apiStatus').textContent = 'Failed';
+                            addLog('API test failed: ' + data.message, 'error');
+                        }
+                    } else {
+                        throw new Error('Server returned error: ' + response.status);
+                    }
+                } catch (error) {
+                    addLog('API test failed: ' + error.message, 'error');
+                    document.getElementById('apiStatus').className = 'status-badge status-error';
+                    document.getElementById('apiStatus').textContent = 'Failed';
+                } finally {
+                    showLoading(false);
+                }
+            }
+            
+            // Setup routines
+            async function setupRoutines() {
+                showLoading(true);
+                addLog('Setting up routines...', 'info');
+                
+                try {
+                    const response = await fetch('/api/setup-routines', {
+                        method: 'POST'
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            document.getElementById('routineStatus').className = 'status-badge status-success';
+                            document.getElementById('routineStatus').textContent = 'Success';
+                            addLog('Routine setup successful. Created ' + data.routinesCreated.length + ' routines for device: ' + data.targetDevice, 'success');
+                        } else {
+                            document.getElementById('routineStatus').className = 'status-badge status-error';
+                            document.getElementById('routineStatus').textContent = 'Failed';
+                            addLog('Routine setup failed: ' + data.message, 'error');
+                        }
+                    } else {
+                        throw new Error('Server returned error: ' + response.status);
+                    }
+                } catch (error) {
+                    addLog('Routine setup failed: ' + error.message, 'error');
+                    document.getElementById('routineStatus').className = 'status-badge status-error';
+                    document.getElementById('routineStatus').textContent = 'Failed';
+                } finally {
+                    showLoading(false);
+                }
+            }
+            
+            // Update connection status UI
+            function updateConnectionStatus(connected) {
+                const statusElement = document.getElementById('connectionStatus');
+                
+                if (connected) {
+                    statusElement.className = 'status-badge status-connected';
+                    statusElement.textContent = 'Connected';
+                } else {
+                    statusElement.className = 'status-badge status-disconnected';
+                    statusElement.textContent = 'Disconnected';
+                }
+            }
+            
+            // Add log entry
+            function addLog(message, type = 'info') {
+                const now = new Date();
+                const timeString = `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
+                
+                const logEntry = document.createElement('div');
+                logEntry.className = 'log-entry';
+                logEntry.innerHTML = `<span class="log-time">${timeString}</span> <span class="log-${type}">${message}</span>`;
+                
+                logOutput.appendChild(logEntry);
+                logOutput.scrollTop = logOutput.scrollHeight;
+            }
+            
+            // Clear log
+            function clearLog() {
+                logOutput.innerHTML = '';
+                addLog('Log cleared', 'info');
+            }
+            
+            // Show/hide loading
+            function showLoading(show) {
+                document.getElementById('globalLoading').style.display = show ? 'block' : 'none';
+            }
+        });
     </script>
 </body>
 </html>
