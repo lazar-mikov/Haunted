@@ -776,50 +776,66 @@ app.get("/auth/ifttt/callback", async (req, res) => {
   }
 });
 
-/** ---------- [ADDED] Dev helpers: inspect/prime tokens ---------- */
-// shows whether the server has any token and whether your session already has one
-app.get("/dev/debug-tokens", (req, res) => {
-  try {
-    const store = app.locals?.iftttTokens;
-    let latest = null;
-    if (store && typeof store.forUser === "function") {
-      latest = store.forUser("demo-user-001");
-    }
-    res.json({
-      hasSessionToken: !!(req.session?.ifttt?.access_token),
-      latestDemoToken: latest || null
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "debug failed" });
-  }
-});
+/// Replace your existing debug endpoints with these:
 
 // Debug endpoint to check tokens
 app.get('/api/debug/tokens', (req, res) => {
-  res.json({
-    sessionId: req.sessionID,
-    hasSessionToken: alexaUserSessions.has(req.sessionID),
-    totalSessions: alexaUserSessions.size,
-    totalTokens: alexaTokenStore.size
-  });
+  try {
+    const storageKey = 'alexa_main_tokens';
+    const accessToken = alexaUserSessions.get(storageKey);
+    const refreshToken = alexaRefreshTokens.get(storageKey);
+    
+    res.json({
+      sessionId: req.sessionID,
+      hasAccessToken: !!accessToken,
+      hasRefreshToken: !!refreshToken,
+      accessToken: accessToken || 'Not found',
+      refreshToken: refreshToken || 'Not found',
+      totalSessions: alexaUserSessions.size,
+      totalRefreshTokens: alexaRefreshTokens.size
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Debug endpoint to see ALL sessions and tokens
 app.get('/api/debug/all-tokens', (req, res) => {
-  res.json({
-    currentSessionId: req.sessionID,
-    allSessions: Array.from(alexaUserSessions.entries()).map(([sessionId, token]) => ({
-      sessionId,
-      hasToken: !!token,
-      tokenPreview: token ? `${token.substring(0, 10)}...` : null
-    })),
-    totalSessions: alexaUserSessions.size,
-    totalTokens: alexaTokenStore.size,
-    recentCallback: req.session.lastCallbackData // We'll add this next
-  });
+  try {
+    res.json({
+      currentSessionId: req.sessionID,
+      allAccessTokens: Object.fromEntries(alexaUserSessions.entries()),
+      allRefreshTokens: Object.fromEntries(alexaRefreshTokens.entries()),
+      totalSessions: alexaUserSessions.size,
+      totalRefreshTokens: alexaRefreshTokens.size
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
+// Simple endpoint to just get your main token
+app.get('/api/my-token', (req, res) => {
+  try {
+    const storageKey = 'alexa_main_tokens';
+    const accessToken = alexaUserSessions.get(storageKey);
+    
+    if (accessToken) {
+      res.json({
+        success: true,
+        accessToken: accessToken,
+        tokenLength: accessToken.length
+      });
+    } else {
+      res.json({
+        success: false,
+        message: 'No access token found'
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // copies the latest server token into THIS browser session, then goes to /watch
 app.get("/dev/prime-session", (req, res) => {
