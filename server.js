@@ -19,6 +19,9 @@ const alexaRefreshTokens = new Map();
 // Store device states for contact sensors
 const deviceStates = new Map();
 
+
+initializeContactSensors();
+
 // Initialize contact sensor states
 const initializeContactSensors = () => {
   deviceStates.set("haunted-blackout-sensor", "CLOSED");
@@ -443,6 +446,99 @@ app.get('/api/sensor-states', (req, res) => {
   const states = Object.fromEntries(deviceStates.entries());
   res.json({ states });
 });
+
+
+// Add these missing functions to your server.js
+
+// Function to send change reports to Alexa
+async function sendAlexaChangeReport(endpointId, newState, accessToken) {
+  try {
+    console.log(`📤 Sending change report for ${endpointId}: ${newState}`);
+    
+    const event = {
+      event: {
+        header: {
+          namespace: "Alexa",
+          name: "ChangeReport",
+          messageId: crypto.randomUUID(),
+          payloadVersion: "3"
+        },
+        endpoint: {
+          scope: {
+            type: "BearerToken",
+            token: accessToken
+          },
+          endpointId: endpointId
+        },
+        payload: {
+          change: {
+            cause: {
+              type: "PHYSICAL_INTERACTION"
+            },
+            properties: [{
+              namespace: "Alexa.ContactSensor",
+              name: "detectionState",
+              value: newState,
+              timeOfSample: new Date().toISOString(),
+              uncertaintyInMilliseconds: 0
+            }]
+          }
+        }
+      }
+    };
+
+    const response = await axios.post('https://api.amazonalexa.com/v1/events', event, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 5000
+    });
+
+    console.log(`✅ Change report sent successfully for ${endpointId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`❌ Failed to send change report for ${endpointId}:`, error.response?.data || error.message);
+    throw error;
+  }
+}
+
+// Function to trigger contact sensor state changes
+async function triggerContactSensor(sensorId, effect) {
+  try {
+    console.log(`🎭 Triggering contact sensor: ${sensorId} for effect: ${effect}`);
+    
+    const storageKey = 'alexa_main_tokens';
+    const accessToken = alexaUserSessions.get(storageKey);
+    
+    if (!accessToken) {
+      console.warn('⚠️ No access token available for sending change reports');
+      return { success: false, message: 'No Alexa connection' };
+    }
+    
+    // Change sensor state to DETECTED
+    deviceStates.set(sensorId, "DETECTED");
+    
+    // Send change report to Alexa
+    await sendAlexaChangeReport(sensorId, "DETECTED", accessToken);
+    
+    // Reset sensor state after a short delay
+    setTimeout(async () => {
+      try {
+        deviceStates.set(sensorId, "NOT_DETECTED");
+        await sendAlexaChangeReport(sensorId, "NOT_DETECTED", accessToken);
+        console.log(`🔄 Reset sensor: ${sensorId}`);
+      } catch (error) {
+        console.error(`❌ Failed to reset sensor ${sensorId}:`, error.message);
+      }
+    }, 2000);
+    
+    return { success: true, message: `Triggered ${effect}` };
+  } catch (error) {
+    console.error(`❌ Failed to trigger sensor ${sensorId}:`, error.message);
+    return { success: false, message: error.message };
+  }
+}
 
 // ===================== ALEXA CONNECTION STATUS =====================
 app.get('/api/alexa/status', (req, res) => {
