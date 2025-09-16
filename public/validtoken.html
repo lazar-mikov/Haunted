@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alexa Token Tester</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #232f3e 0%, #146eb4 100%);
+            color: #fff;
+            padding: 20px;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: rgba(35, 47, 62, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #146eb4;
+            border-radius: 10px;
+        }
+        
+        h1 {
+            margin-bottom: 10px;
+            font-size: 2rem;
+        }
+        
+        .panel {
+            background-color: #2b3d4f;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        h2 {
+            color: #ff9900;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #3a4b5c;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        
+        input, button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background-color: #3a4b5c;
+            color: white;
+            margin-bottom: 10px;
+        }
+        
+        button {
+            background: linear-gradient(to right, #ff9900, #ffad33);
+            color: #232f3e;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .result {
+            background-color: #1c252e;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 14px;
+            border-left: 4px solid #ff9900;
+            max-height: 300px;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-weight: bold;
+            text-align: center;
+        }
+        
+        .status.success {
+            background-color: #1c7c1c;
+        }
+        
+        .status.error {
+            background-color: #b33c3c;
+        }
+        
+        .logs {
+            background-color: #1c252e;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        
+        .log-entry {
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #2b3d4f;
+        }
+        
+        .timestamp {
+            color: #ff9900;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Alexa Token Tester</h1>
+            <p>Get a valid access token and test it with your Alexa control functions</p>
+        </header>
+        
+        <div class="panel">
+            <h2>Get Access Token</h2>
+            <div class="form-group">
+                <label for="apiUrl">API Base URL:</label>
+                <input type="text" id="apiUrl" value="https://haunted-production.up.railway.app" placeholder="Enter your API base URL">
+            </div>
+            
+            <button id="getToken">Get Access Token</button>
+            
+            <div class="result" id="tokenResult">
+                Token will be displayed here
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>Test Control Function</h2>
+            <div class="form-group">
+                <label for="endpointId">Endpoint ID:</label>
+                <input type="text" id="endpointId" value="haunted-blackout" placeholder="Enter endpoint ID">
+            </div>
+            
+            <div class="form-group">
+                <label for="action">Action:</label>
+                <input type="text" id="action" value="TurnOn" placeholder="Enter action (TurnOn/TurnOff)">
+            </div>
+            
+            <button id="testControl">Test Control Function</button>
+            
+            <div class="result" id="controlResult">
+                Control result will be displayed here
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>Debug Logs</h2>
+            <div class="logs" id="debugLogs">
+                <div class="log-entry">
+                    <span class="timestamp">[00:00:00]</span>
+                    <span>System initialized. Ready to test.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM elements
+        const apiUrlInput = document.getElementById('apiUrl');
+        const getTokenBtn = document.getElementById('getToken');
+        const tokenResult = document.getElementById('tokenResult');
+        
+        const endpointIdInput = document.getElementById('endpointId');
+        const actionInput = document.getElementById('action');
+        const testControlBtn = document.getElementById('testControl');
+        const controlResult = document.getElementById('controlResult');
+        
+        const debugLogs = document.getElementById('debugLogs');
+        
+        // State
+        let accessToken = null;
+        
+        // Add log entry
+        function addLog(message) {
+            const now = new Date();
+            const timestamp = `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.innerHTML = `<span class="timestamp">${timestamp}</span> <span>${message}</span>`;
+            
+            debugLogs.appendChild(logEntry);
+            debugLogs.scrollTop = debugLogs.scrollHeight;
+        }
+        
+        // Get access token
+        getTokenBtn.addEventListener('click', async () => {
+            try {
+                addLog('Requesting access token...');
+                const apiUrl = apiUrlInput.value;
+                
+                const response = await fetch(`${apiUrl}/api/alexa/status`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const status = await response.json();
+                accessToken = status.token;
+                
+                if (accessToken) {
+                    tokenResult.textContent = `Token: ${accessToken}`;
+                    tokenResult.className = 'result status success';
+                    addLog(`Access token received: ${accessToken.substring(0, 20)}...`);
+                } else {
+                    tokenResult.textContent = 'No token received from server';
+                    tokenResult.className = 'result status error';
+                    addLog('No token received from server');
+                }
+            } catch (error) {
+                tokenResult.textContent = `Error: ${error.message}`;
+                tokenResult.className = 'result status error';
+                addLog(`Error getting token: ${error.message}`);
+            }
+        });
+        
+        // Test control function
+        testControlBtn.addEventListener('click', async () => {
+            if (!accessToken) {
+                controlResult.textContent = 'Please get an access token first';
+                controlResult.className = 'result status error';
+                return;
+            }
+            
+            try {
+                addLog('Testing control function...');
+                const apiUrl = apiUrlInput.value;
+                const endpointId = endpointIdInput.value;
+                const action = actionInput.value;
+                
+                const response = await fetch(`${apiUrl}/alexa/smarthome`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({
+                        "directive": {
+                            "header": {
+                                "namespace": "Alexa.PowerController",
+                                "name": action,
+                                "messageId": `test-control-${Date.now()}`,
+                                "payloadVersion": "3",
+                                "correlationToken": "test-correlation-token"
+                            },
+                            "endpoint": {
+                                "endpointId": endpointId,
+                                "scope": {
+                                    "type": "BearerToken",
+                                    "token": accessToken
+                                },
+                                "cookie": {}
+                            },
+                            "payload": {}
+                        }
+                    })
+                });
+                
+                const result = await response.json();
+                controlResult.textContent = JSON.stringify(result, null, 2);
+                controlResult.className = 'result';
+                
+                if (result.error === "Invalid access token") {
+                    addLog('Control test failed: Invalid access token');
+                } else {
+                    addLog('Control test completed successfully');
+                }
+            } catch (error) {
+                controlResult.textContent = `Error: ${error.message}`;
+                controlResult.className = 'result status error';
+                addLog(`Control test failed: ${error.message}`);
+            }
+        });
+        
+        // Initialize
+        addLog('System initialized. Ready to test.');
+    </script>
+</body>
+</html>
