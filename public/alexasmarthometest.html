@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alexa Smart Home Integration Tester</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #232f3e;
+            color: #fff;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #146eb4;
+            border-radius: 10px;
+        }
+        
+        h1 {
+            margin-bottom: 10px;
+        }
+        
+        .description {
+            margin-bottom: 20px;
+            color: #ddd;
+        }
+        
+        .panels {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .panel {
+            flex: 1;
+            min-width: 300px;
+            background-color: #2b3d4f;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        h2 {
+            color: #ff9900;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #3a4b5c;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        input, select, button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            background-color: #3a4b5c;
+            color: white;
+            margin-bottom: 10px;
+        }
+        
+        button {
+            background-color: #ff9900;
+            color: #232f3e;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #e88a00;
+        }
+        
+        .result {
+            background-color: #1c252e;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        
+        .device-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .device-card {
+            background-color: #3a4b5c;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .device-icon {
+            font-size: 30px;
+            margin-bottom: 10px;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        
+        .status.success {
+            background-color: #1c7c1c;
+        }
+        
+        .status.error {
+            background-color: #b33c3c;
+        }
+        
+        .logs {
+            background-color: #1c252e;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            max-height: 150px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #2b3d4f;
+        }
+        
+        .timestamp {
+            color: #ff9900;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Alexa Smart Home Integration Tester</h1>
+            <p class="description">
+                Test your Alexa Smart Home skill integration and troubleshoot issues with device discovery and control.
+            </p>
+        </header>
+        
+        <div class="panels">
+            <div class="panel">
+                <h2>Configuration</h2>
+                <div class="form-group">
+                    <label for="apiUrl">API Base URL:</label>
+                    <input type="text" id="apiUrl" value="/api" placeholder="Enter your API base URL">
+                </div>
+                
+                <div class="form-group">
+                    <label for="skillId">Skill ID:</label>
+                    <input type="text" id="skillId" placeholder="Enter your Skill ID (amzn1.ask.skill.xxx)">
+                </div>
+                
+                <div class="form-group">
+                    <label for="lambdaArn">Lambda ARN:</label>
+                    <input type="text" id="lambdaArn" placeholder="Enter your Lambda ARN">
+                </div>
+                
+                <button id="saveConfig">Save Configuration</button>
+                
+                <div class="result" id="configResult">
+                    Configuration will be shown here
+                </div>
+            </div>
+            
+            <div class="panel">
+                <h2>Authentication Test</h2>
+                <p>Test if your OAuth token is working correctly</p>
+                
+                <button id="getToken">Get Access Token</button>
+                
+                <div class="result" id="tokenResult">
+                    Token result will be shown here
+                </div>
+                
+                <button id="testAuth">Test Authentication</button>
+                
+                <div class="result" id="authResult">
+                    Authentication result will be shown here
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>Device Discovery</h2>
+            <p>Test if Alexa can discover your virtual devices</p>
+            
+            <button id="discoverDevices">Discover Devices</button>
+            
+            <div class="result" id="discoveryResult">
+                Discovery result will be shown here
+            </div>
+            
+            <h3>Discovered Devices</h3>
+            <div class="device-grid" id="devices">
+                <!-- Devices will be displayed here -->
+                <div class="device-card">
+                    <div class="device-icon">💡</div>
+                    <h3>No devices found</h3>
+                    <p>Run discovery to find devices</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>Device Control Test</h2>
+            <p>Test controlling your virtual devices</p>
+            
+            <div class="form-group">
+                <label for="deviceSelect">Select Device:</label>
+                <select id="deviceSelect">
+                    <option value="">-- Select a device --</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="actionSelect">Action:</label>
+                <select id="actionSelect">
+                    <option value="TurnOn">Turn On</option>
+                    <option value="TurnOff">Turn Off</option>
+                </select>
+            </div>
+            
+            <button id="controlDevice">Control Device</button>
+            
+            <div class="result" id="controlResult">
+                Control result will be shown here
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>Debug Logs</h2>
+            <div class="logs" id="debugLogs">
+                <div class="log-entry">
+                    <span class="timestamp">[00:00:00]</span>
+                    <span>System initialized. Ready to test.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM elements
+        const apiUrlInput = document.getElementById('apiUrl');
+        const skillIdInput = document.getElementById('skillId');
+        const lambdaArnInput = document.getElementById('lambdaArn');
+        const saveConfigBtn = document.getElementById('saveConfig');
+        const configResult = document.getElementById('configResult');
+        
+        const getTokenBtn = document.getElementById('getToken');
+        const tokenResult = document.getElementById('tokenResult');
+        const testAuthBtn = document.getElementById('testAuth');
+        const authResult = document.getElementById('authResult');
+        
+        const discoverDevicesBtn = document.getElementById('discoverDevices');
+        const discoveryResult = document.getElementById('discoveryResult');
+        const devicesContainer = document.getElementById('devices');
+        
+        const deviceSelect = document.getElementById('deviceSelect');
+        const actionSelect = document.getElementById('actionSelect');
+        const controlDeviceBtn = document.getElementById('controlDevice');
+        const controlResult = document.getElementById('controlResult');
+        
+        const debugLogs = document.getElementById('debugLogs');
+        
+        // State
+        let accessToken = null;
+        let discoveredDevices = [];
+        
+        // Add log entry
+        function addLog(message) {
+            const now = new Date();
+            const timestamp = `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.innerHTML = `<span class="timestamp">${timestamp}</span> <span>${message}</span>`;
+            
+            debugLogs.appendChild(logEntry);
+            debugLogs.scrollTop = debugLogs.scrollHeight;
+        }
+        
+        // Save configuration
+        saveConfigBtn.addEventListener('click', () => {
+            const config = {
+                apiUrl: apiUrlInput.value,
+                skillId: skillIdInput.value,
+                lambdaArn: lambdaArnInput.value
+            };
+            
+            localStorage.setItem('alexaConfig', JSON.stringify(config));
+            configResult.textContent = 'Configuration saved successfully!';
+            configResult.className = 'result status success';
+            
+            addLog('Configuration saved');
+        });
+        
+        // Load configuration
+        function loadConfig() {
+            const savedConfig = localStorage.getItem('alexaConfig');
+            if (savedConfig) {
+                const config = JSON.parse(savedConfig);
+                apiUrlInput.value = config.apiUrl;
+                skillIdInput.value = config.skillId;
+                lambdaArnInput.value = config.lambdaArn;
+                
+                addLog('Configuration loaded');
+            }
+        }
+        
+        // Get access token
+        getTokenBtn.addEventListener('click', async () => {
+            try {
+                addLog('Requesting access token...');
+                const apiUrl = apiUrlInput.value || '/api';
+                const response = await fetch(`${apiUrl}/alexa/status`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const status = await response.json();
+                accessToken = status.token;
+                
+                tokenResult.textContent = `Token received: ${accessToken ? accessToken.substring(0, 20) + '...' : 'undefined'}`;
+                tokenResult.className = 'result status success';
+                
+                addLog('Access token received');
+            } catch (error) {
+                tokenResult.textContent = `Error: ${error.message}`;
+                tokenResult.className = 'result status error';
+                
+                addLog(`Error getting token: ${error.message}`);
+            }
+        });
+        
+        // Test authentication
+        testAuthBtn.addEventListener('click', async () => {
+            if (!accessToken) {
+                authResult.textContent = 'Please get an access token first';
+                authResult.className = 'result status error';
+                return;
+            }
+            
+            try {
+                addLog('Testing authentication...');
+                const apiUrl = apiUrlInput.value || '/api';
+                const response = await fetch(`${apiUrl}/alexa/smarthome`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({
+                        "directive": {
+                            "header": {
+                                "namespace": "Alexa.Authorization",
+                                "name": "AcceptGrant",
+                                "messageId": "test-auth-123",
+                                "payloadVersion": "3"
+                            },
+                            "payload": {
+                                "grant": {
+                                    "type": "OAuth2.AuthorizationCode",
+                                    "code": "auth-code-test"
+                                },
+                                "grantee": {
+                                    "type": "BearerToken",
+                                    "token": accessToken
+                                }
+                            }
+                        }
+                    })
+                });
+                
+                const result = await response.json();
+                authResult.textContent = JSON.stringify(result, null, 2);
+                authResult.className = 'result';
+                
+                addLog('Authentication test completed');
+            } catch (error) {
+                authResult.textContent = `Error: ${error.message}`;
+                authResult.className = 'result status error';
+                
+                addLog(`Authentication test failed: ${error.message}`);
+            }
+        });
+        
+        // Discover devices
+        discoverDevicesBtn.addEventListener('click', async () => {
+            if (!accessToken) {
+                discoveryResult.textContent = 'Please get an access token first';
+                discoveryResult.className = 'result status error';
+                return;
+            }
+            
+            try {
+                addLog('Discovering devices...');
+                const apiUrl = apiUrlInput.value || '/api';
+                const response = await fetch(`${apiUrl}/alexa/smarthome`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({
+                        "directive": {
+                            "header": {
+                                "namespace": "Alexa.Discovery",
+                                "name": "Discover",
+                                "messageId": "test-discovery-123",
+                                "payloadVersion": "3"
+                            },
+                            "payload": {
+                                "scope": {
+                                    "type": "BearerToken",
+                                    "token": accessToken
+                                }
+                            }
+                        }
+                    })
+                });
+                
+                const discovery = await response.json();
+                discoveryResult.textContent = JSON.stringify(discovery, null, 2);
+                discoveryResult.className = 'result';
+                
+                // Extract endpoints from response
+                if (discovery.event && discovery.event.payload && discovery.event.payload.endpoints) {
+                    discoveredDevices = discovery.event.payload.endpoints;
+                    renderDevices(discoveredDevices);
+                    updateDeviceSelect(discoveredDevices);
+                    
+                    addLog(`Discovered ${discoveredDevices.length} devices`);
+                } else {
+                    addLog('No devices found in discovery response');
+                }
+            } catch (error) {
+                discoveryResult.textContent = `Error: ${error.message}`;
+                discoveryResult.className = 'result status error';
+                
+                addLog(`Discovery failed: ${error.message}`);
+            }
+        });
+        
+        // Render devices
+        function renderDevices(devices) {
+            if (devices.length === 0) {
+                devicesContainer.innerHTML = `
+                    <div class="device-card">
+                        <div class="device-icon">❌</div>
+                        <h3>No devices found</h3>
+                        <p>Run discovery to find devices</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            devicesContainer.innerHTML = '';
+            
+            devices.forEach(device => {
+                const deviceCard = document.createElement('div');
+                deviceCard.className = 'device-card';
+                
+                // Select icon based on device type
+                let icon = '💡';
+                if (device.endpointId.includes('blackout')) icon = '🌑';
+                if (device.endpointId.includes('flash')) icon = '⚡';
+                if (device.endpointId.includes('plug')) icon = '🔌';
+                if (device.endpointId.includes('reset')) icon = '🔄';
+                
+                deviceCard.innerHTML = `
+                    <div class="device-icon">${icon}</div>
+                    <h3>${device.friendlyName}</h3>
+                    <p>${device.description || 'No description'}</p>
+                    <div class="status">ID: ${device.endpointId}</div>
+                `;
+                
+                devicesContainer.appendChild(deviceCard);
+            });
+        }
+        
+        // Update device select
+        function updateDeviceSelect(devices) {
+            deviceSelect.innerHTML = '<option value="">-- Select a device --</option>';
+            
+            devices.forEach(device => {
+                const option = document.createElement('option');
+                option.value = device.endpointId;
+                option.textContent = device.friendlyName;
+                deviceSelect.appendChild(option);
+            });
+        }
+        
+        // Control device
+        controlDeviceBtn.addEventListener('click', async () => {
+            const deviceId = deviceSelect.value;
+            const action = actionSelect.value;
+            
+            if (!deviceId) {
+                controlResult.textContent = 'Please select a device first';
+                controlResult.className = 'result status error';
+                return;
+            }
+            
+            if (!accessToken) {
+                controlResult.textContent = 'Please get an access token first';
+                controlResult.className = 'result status error';
+                return;
+            }
+            
+            try {
+                addLog(`Controlling device: ${deviceId} with action: ${action}`);
+                const apiUrl = apiUrlInput.value || '/api';
+                const response = await fetch(`${apiUrl}/alexa/smarthome`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({
+                        "directive": {
+                            "header": {
+                                "namespace": "Alexa.PowerController",
+                                "name": action,
+                                "messageId": `test-control-${Date.now()}`,
+                                "payloadVersion": "3",
+                                "correlationToken": "test-correlation-token"
+                            },
+                            "endpoint": {
+                                "endpointId": deviceId,
+                                "cookie": {}
+                            },
+                            "payload": {}
+                        }
+                    })
+                });
+                
+                const controlResponse = await response.json();
+                controlResult.textContent = JSON.stringify(controlResponse, null, 2);
+                controlResult.className = 'result';
+                
+                addLog(`Device control request completed for ${deviceId}`);
+            } catch (error) {
+                controlResult.textContent = `Error: ${error.message}`;
+                controlResult.className = 'result status error';
+                
+                addLog(`Device control failed: ${error.message}`);
+            }
+        });
+        
+        // Initialize
+        loadConfig();
+        addLog('System initialized. Ready to test.');
+    </script>
+</body>
+</html>
