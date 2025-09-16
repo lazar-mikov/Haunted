@@ -659,12 +659,48 @@ app.get('/debug/discovery', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+
+// Add error handling for server startup
+const server = app.listen(PORT, () => {
   console.log(`🚀 Haunted House server running on port ${PORT}`);
   console.log(`📱 Contact sensors initialized and ready for triggering`);
+}).on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use. Trying to stop existing process...`);
+    
+    // Try to use a different port if Railway's PORT is in use
+    const fallbackPort = PORT + 1;
+    console.log(`🔄 Attempting to start on port ${fallbackPort}...`);
+    
+    app.listen(fallbackPort, () => {
+      console.log(`🚀 Haunted House server running on fallback port ${fallbackPort}`);
+      console.log(`📱 Contact sensors initialized and ready for triggering`);
+    }).on('error', (fallbackErr) => {
+      console.error(`❌ Failed to start server on any port:`, fallbackErr);
+      process.exit(1);
+    });
+  } else {
+    console.error(`❌ Server startup error:`, err);
+    process.exit(1);
+  }
 });
 
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\n🛑 Received SIGINT. Shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
+});
 
+process.on('SIGTERM', () => {
+  console.log('\n🛑 Received SIGTERM. Shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
+});
 
 // [REST OF YOUR EXISTING CODE REMAINS UNCHANGED - IFTTT,
 
@@ -1217,5 +1253,3 @@ app.post("/api/kill", (req, res) => {
   });
 })();
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Haunted demo running at http://localhost:${port}`));
