@@ -16,6 +16,19 @@ let authCodes = new Map();
 const alexaUserSessions = new Map();
 const alexaRefreshTokens = new Map();
 
+// Store device states for contact sensors
+const deviceStates = new Map();
+
+// Initialize contact sensor states
+const initializeContactSensors = () => {
+  deviceStates.set("haunted-blackout-sensor", "CLOSED");
+  deviceStates.set("haunted-flash-red-sensor", "CLOSED");
+  deviceStates.set("haunted-plug-on-sensor", "CLOSED");
+  deviceStates.set("haunted-reset-sensor", "CLOSED");
+};
+
+initializeContactSensors();
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -31,171 +44,56 @@ app.use(session({
 }));
 app.use(express.static("public"));
 
-// ===================== ALEXA SMAPI FUNCTIONS =====================
-async function getAlexaDevices(accessToken) {
+// ===================== ALEXA EVENT GATEWAY =====================
+async function sendAlexaChangeReport(endpointId, newState, accessToken) {
   try {
-    console.log('🔍 Getting user devices via SMAPI...');
-    const response = await axios.get('https://api.amazonalexa.com/v1/devices', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
-      }
-    });
+    console.log(`📤 Sending change report for ${endpointId}: ${newState}`);
     
-    // Filter for lights and plugs only
-    const lightDevices = response.data.devices.filter(device => 
-      device.deviceType === 'AUTO' || // Alexa considers many smart lights as AUTO type
-      device.deviceType === 'LIGHT' ||
-      device.deviceType === 'PLUG' ||
-      device.deviceType === 'SMARTPLUG'
-    );
-    
-    console.log(`✅ Found ${lightDevices.length} controllable devices`);
-    return lightDevices;
-  } catch (error) {
-    console.error('❌ Failed to get user devices:', error.response?.data || error.message);
-    return [];
-  }
-}
-
-async function createAlexaRoutine(accessToken, routineName, triggerDeviceId, actionDeviceId, actionType, actionValue = null) {
-  try {
-    console.log(`🛠 Creating routine: ${routineName}`);
-    
-    // Build the action payload based on action type
-    let actionPayload = {};
-    switch (actionType) {
-      case 'turnOff':
-        actionPayload = { action: 'turnOff' };
-        break;
-      case 'turnOn':
-        actionPayload = { action: 'turnOn' };
-        break;
-      case 'setColor':
-        actionPayload = { 
-          action: 'setColor',
-          value: actionValue 
-        };
-        break;
-      case 'setPercentage':
-        actionPayload = { 
-          action: 'setPercentage',
-          value: actionValue 
-        };
-        break;
-      default:
-        actionPayload = { action: 'turnOff' };
-    }
-
-    const routineData = {
-      name: routineName,
-      trigger: {
-        type: "SmartHome.DeviceActivation",
-        payload: {
-          device: {
-            deviceId: triggerDeviceId,
-            type: "Alexa.Scene"
+    const event = {
+      event: {
+        header: {
+          namespace: "Alexa",
+          name: "ChangeReport",
+          messageId: crypto.randomUUID(),
+          payloadVersion: "3"
+        },
+        endpoint: {
+          scope: {
+            type: "BearerToken",
+            token: accessToken
           },
-          activation: {
-            type: "TURN_ON",
-            value: "true"
+          endpointId: endpointId
+        },
+        payload: {
+          change: {
+            cause: {
+              type: "PHYSICAL_INTERACTION"
+            },
+            properties: [{
+              namespace: "Alexa.ContactSensor",
+              name: "detectionState",
+              value: newState,
+              timeOfSample: new Date().toISOString(),
+              uncertaintyInMilliseconds: 0
+            }]
           }
         }
-      },
-      actions: [
-        {
-          type: "SmartHome.Control",
-          parameters: {
-            devices: [actionDeviceId],
-            ...actionPayload
-          }
-        }
-      ]
+      }
     };
 
-    const response = await axios.post('https://api.amazonalexa.com/v1/routines', routineData, {
+    const response = await axios.post('https://api.amazonalexa.com/v1/events', event, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
-      }
+      },
+      timeout: 5000
     });
 
-    console.log(`✅ Routine created: ${routineName}`);
+    console.log(`✅ Change report sent successfully for ${endpointId}`);
     return response.data;
   } catch (error) {
-    console.error('❌ Failed to create routine:', error.response?.data || error.message);
+    console.error(`❌ Failed to send change report for ${endpointId}:`, error.response?.data || error.message);
     throw error;
-  }
-}
-
-async function setupAutomaticRoutines(accessToken) {
-  try {
-    console.log('🚀 Setting up automatic routines...');
-    
-    // Get user's devices
-    const userDevices = await getAlexaDevices(accessToken);
-    if (userDevices.length === 0) {
-      console.log('⚠️ No compatible devices found for automatic setup');
-      return { success: false, message: 'No compatible devices found' };
-    }
-
-    // Use the first available device for automation
-    const targetDevice = userDevices[0];
-    
-    // Create routines for each virtual device
-    const routines = [
-      {
-        name: "Haunted House - Blackout",
-        triggerDeviceId: "haunted-blackout",
-        actionType: "turnOff",
-        actionValue: null
-      },
-      {
-        name: "Haunted House - Red Flash", 
-        triggerDeviceId: "haunted-flash-red",
-        actionType: "setColor",
-        actionValue: { hue: 0, saturation: 1, brightness: 1 } // Red
-      },
-      {
-        name: "Haunted House - Plug On",
-        triggerDeviceId: "haunted-plug-on", 
-        actionType: "turnOn",
-        actionValue: null
-      },
-      {
-        name: "Haunted House - Reset",
-        triggerDeviceId: "haunted-reset",
-        actionType: "turnOn",
-        actionValue: null
-      }
-    ];
-
-    const createdRoutines = [];
-    
-    for (const routine of routines) {
-      try {
-        await createAlexaRoutine(
-          accessToken,
-          routine.name,
-          routine.triggerDeviceId,
-          targetDevice.deviceId,
-          routine.actionType,
-          routine.actionValue
-        );
-        createdRoutines.push(routine.name);
-      } catch (error) {
-        console.error(`Failed to create routine: ${routine.name}`, error.message);
-      }
-    }
-
-    console.log(`✅ Created ${createdRoutines.length} routines`);
-    return { 
-      success: true, 
-      routinesCreated: createdRoutines,
-      targetDevice: targetDevice.friendlyName
-    };
-  } catch (error) {
-    console.error('❌ Automatic routine setup failed:', error.message);
-    return { success: false, error: error.message };
   }
 }
 
@@ -207,78 +105,147 @@ async function handleAlexaDiscovery(directive, res) {
     try {
       console.log('🔍 Starting device discovery...');
       
+      // Updated to contact sensors instead of switches
       const virtualEndpoints = [
         {
-          endpointId: "haunted-blackout",
+          endpointId: "haunted-blackout-sensor",
           manufacturerName: "Haunted House",
-          friendlyName: "Blackout Effect",
-          description: "Complete darkness effect - Create a routine with this as trigger",
-          displayCategories: ["SWITCH"],
-          capabilities: [{
-            type: "AlexaInterface",
-            interface: "Alexa.PowerController",
-            version: "3",
-            properties: {
-              supported: [{ name: "powerState" }],
-              proactivelyReported: true,
-              retrievable: true
+          friendlyName: "Blackout Trigger",
+          description: "Contact sensor for blackout effect - use in routines",
+          displayCategories: ["CONTACT_SENSOR"],
+          capabilities: [
+            {
+              type: "AlexaInterface",
+              interface: "Alexa.ContactSensor",
+              version: "3",
+              properties: {
+                supported: [{ name: "detectionState" }],
+                proactivelyReported: true,
+                retrievable: true
+              }
+            },
+            {
+              type: "AlexaInterface",
+              interface: "Alexa.EndpointHealth",
+              version: "3",
+              properties: {
+                supported: [{ name: "connectivity" }],
+                proactivelyReported: true,
+                retrievable: true
+              }
+            },
+            {
+              type: "AlexaInterface",
+              interface: "Alexa",
+              version: "3"
             }
-          }]
+          ]
         },
         {
-          endpointId: "haunted-flash-red",
+          endpointId: "haunted-flash-red-sensor",
           manufacturerName: "Haunted House", 
-          friendlyName: "Red Flash Effect",
-          description: "Sudden red flash effect - Create a routine with this as trigger",
-          displayCategories: ["SWITCH"],
-          capabilities: [{
-            type: "AlexaInterface",
-            interface: "Alexa.PowerController", 
-            version: "3",
-            properties: {
-              supported: [{ name: "powerState" }],
-              proactivelyReported: true,
-              retrievable: true
+          friendlyName: "Red Flash Trigger",
+          description: "Contact sensor for red flash effect - use in routines",
+          displayCategories: ["CONTACT_SENSOR"],
+          capabilities: [
+            {
+              type: "AlexaInterface",
+              interface: "Alexa.ContactSensor",
+              version: "3",
+              properties: {
+                supported: [{ name: "detectionState" }],
+                proactivelyReported: true,
+                retrievable: true
+              }
+            },
+            {
+              type: "AlexaInterface",
+              interface: "Alexa.EndpointHealth",
+              version: "3",
+              properties: {
+                supported: [{ name: "connectivity" }],
+                proactivelyReported: true,
+                retrievable: true
+              }
+            },
+            {
+              type: "AlexaInterface",
+              interface: "Alexa",
+              version: "3"
             }
-          }]
+          ]
         },
         {
-          endpointId: "haunted-plug-on",
+          endpointId: "haunted-plug-on-sensor",
           manufacturerName: "Haunted House", 
-          friendlyName: "Plug On Effect",
-          description: "Trigger plug on effect - Create a routine with this as trigger",
-          displayCategories: ["SWITCH"],
-          capabilities: [{
-            type: "AlexaInterface",
-            interface: "Alexa.PowerController", 
-            version: "3",
-            properties: {
-              supported: [{ name: "powerState" }],
-              proactivelyReported: true,
-              retrievable: true
+          friendlyName: "Plug On Trigger",
+          description: "Contact sensor for plug on effect - use in routines",
+          displayCategories: ["CONTACT_SENSOR"],
+          capabilities: [
+            {
+              type: "AlexaInterface",
+              interface: "Alexa.ContactSensor",
+              version: "3",
+              properties: {
+                supported: [{ name: "detectionState" }],
+                proactivelyReported: true,
+                retrievable: true
+              }
+            },
+            {
+              type: "AlexaInterface",
+              interface: "Alexa.EndpointHealth",
+              version: "3",
+              properties: {
+                supported: [{ name: "connectivity" }],
+                proactivelyReported: true,
+                retrievable: true
+              }
+            },
+            {
+              type: "AlexaInterface",
+              interface: "Alexa",
+              version: "3"
             }
-          }]
+          ]
         },
         {
-          endpointId: "haunted-reset",
+          endpointId: "haunted-reset-sensor",
           manufacturerName: "Haunted House", 
-          friendlyName: "Reset Effect",
-          description: "Reset all effects - Create a routine with this as trigger",
-          displayCategories: ["SWITCH"],
-          capabilities: [{
-            type: "AlexaInterface",
-            interface: "Alexa.PowerController", 
-            version: "3",
-            properties: {
-              supported: [{ name: "powerState" }],
-              proactivelyReported: true,
-              retrievable: true
+          friendlyName: "Reset Trigger",
+          description: "Contact sensor for reset effect - use in routines",
+          displayCategories: ["CONTACT_SENSOR"],
+          capabilities: [
+            {
+              type: "AlexaInterface",
+              interface: "Alexa.ContactSensor",
+              version: "3",
+              properties: {
+                supported: [{ name: "detectionState" }],
+                proactivelyReported: true,
+                retrievable: true
+              }
+            },
+            {
+              type: "AlexaInterface",
+              interface: "Alexa.EndpointHealth",
+              version: "3",
+              properties: {
+                supported: [{ name: "connectivity" }],
+                proactivelyReported: true,
+                retrievable: true
+              }
+            },
+            {
+              type: "AlexaInterface",
+              interface: "Alexa",
+              version: "3"
             }
-          }]
+          ]
         }
       ];
 
-      console.log(`📋 Prepared ${virtualEndpoints.length} virtual endpoints`);
+      console.log(`📋 Prepared ${virtualEndpoints.length} virtual contact sensors`);
       
       const response = {
         event: {
@@ -309,123 +276,20 @@ async function handleAlexaDiscovery(directive, res) {
   }
 }
 
-
-// Add this test endpoint for discovery debugging
-app.get('/debug/discovery', (req, res) => {
-  console.log('🔍 Debug discovery endpoint called');
-  
-  const testResponse = {
-    event: {
-      header: {
-        namespace: "Alexa.Discovery",
-        name: "Discover.Response",
-        messageId: "debug-message-123",
-        payloadVersion: "3"
-      },
-      payload: {
-        endpoints: [
-          {
-            endpointId: "test-blackout",
-            manufacturerName: "Haunted House",
-            friendlyName: "Test Blackout Effect",
-            description: "Test device for discovery debugging",
-            displayCategories: ["SWITCH"],
-            capabilities: [
-              {
-                type: "AlexaInterface",
-                interface: "Alexa.PowerController",
-                version: "3",
-                properties: {
-                  supported: [{ name: "powerState" }],
-                  proactivelyReported: true,
-                  retrievable: true
-                }
-              }
-            ]
-          }
-        ]
-      }
-    }
-  };
-  
-  console.log('📤 Sending test discovery response');
-  res.json(testResponse);
-});
-
-app.post('/debug/discovery', (req, res) => {
-  console.log('🔍 POST Debug discovery called with body:', JSON.stringify(req.body, null, 2));
-  // Return the same response as the GET endpoint
-  app.get('/debug/discovery', (req, res) => {
-    console.log('🔍 Debug discovery endpoint called');
-    
-    const testResponse = {
-      event: {
-        header: {
-          namespace: "Alexa.Discovery",
-          name: "Discover.Response",
-          messageId: "debug-message-123",
-          payloadVersion: "3"
-        },
-        payload: {
-          endpoints: [
-            {
-              endpointId: "test-blackout",
-              manufacturerName: "Haunted House",
-              friendlyName: "Test Blackout Effect",
-              description: "Test device for discovery debugging",
-              displayCategories: ["SWITCH"],
-              capabilities: [
-                {
-                  type: "AlexaInterface",
-                  interface: "Alexa.PowerController",
-                  version: "3",
-                  properties: {
-                    supported: [{ name: "powerState" }],
-                    proactivelyReported: true,
-                    retrievable: true
-                  }
-                }
-              ]
-            }
-          ]
-        }
-      }
-    };
-    
-    console.log('📤 Sending test discovery response');
-    res.json(testResponse);
-  });
-});
-
-
-
-async function handleAlexaPowerControl(directive, res) {
+// Updated handler for contact sensor state reports
+async function handleAlexaStateReport(directive, res) {
   try {
     const endpointId = directive.endpoint.endpointId;
-    const { name } = directive.header;
-    const turnOn = name === 'TurnOn';
+    console.log(`📊 State report requested for: ${endpointId}`);
     
-    console.log(`🎭 Alexa controlling: ${endpointId}, action: ${name}`);
-    
-    if (endpointId.startsWith('haunted-')) {
-      const effect = endpointId.replace('haunted-', '');
-      if (name === 'TurnOn') {
-        try {
-          await axios.post(
-            `${process.env.RAILWAY_URL || 'http://localhost:3000'}/api/trigger-direct`,
-            { effect: effect },
-            { timeout: 5000 }
-          );
-        } catch (error) {
-          console.error('Direct trigger failed:', error.message);
-        }
-      }
+    if (endpointId.includes('haunted-') && endpointId.includes('-sensor')) {
+      const currentState = deviceStates.get(endpointId) || "CLOSED";
       
       const response = {
         event: {
           header: {
             namespace: "Alexa",
-            name: "Response",
+            name: "StateReport",
             messageId: directive.header.messageId,
             payloadVersion: "3",
             correlationToken: directive.header.correlationToken
@@ -434,107 +298,72 @@ async function handleAlexaPowerControl(directive, res) {
           payload: {}
         },
         context: {
-          properties: [{
-            namespace: "Alexa.PowerController",
-            name: "powerState",
-            value: name === 'TurnOn' ? "ON" : "OFF",
-            timeOfSample: new Date().toISOString(),
-            uncertaintyInMilliseconds: 500
-          }]
+          properties: [
+            {
+              namespace: "Alexa.ContactSensor",
+              name: "detectionState",
+              value: currentState,
+              timeOfSample: new Date().toISOString(),
+              uncertaintyInMilliseconds: 0
+            },
+            {
+              namespace: "Alexa.EndpointHealth",
+              name: "connectivity",
+              value: { value: "OK" },
+              timeOfSample: new Date().toISOString(),
+              uncertaintyInMilliseconds: 0
+            }
+          ]
         }
       };
+      
       return res.json(response);
-    }
-    else {
+    } else {
       return res.status(400).json({ error: 'Unknown endpoint' });
     }
   } catch (error) {
-    console.error('Error in handleAlexaPowerControl:', error);
+    console.error('Error in handleAlexaStateReport:', error);
     return res.status(500).json({ error: 'INTERNAL_ERROR', message: error.message });
   }
 }
 
-// Add this test endpoint to your server code
-app.post('/test-discovery', (req, res) => {
-  console.log('Discovery test called with body:', JSON.stringify(req.body, null, 2));
-  
-  // Simulate a valid discovery response
-  const response = {
-    event: {
-      header: {
-        namespace: "Alexa.Discovery",
-        name: "Discover.Response",
-        messageId: "test-message-123",
-        payloadVersion: "3"
-      },
-      payload: {
-        endpoints: [
-          {
-            endpointId: "test-blackout",
-            manufacturerName: "Haunted House",
-            friendlyName: "Test Blackout Effect",
-            description: "Test device for discovery",
-            displayCategories: ["SWITCH"],
-            capabilities: [
-              {
-                type: "AlexaInterface",
-                interface: "Alexa.PowerController",
-                version: "3",
-                properties: {
-                  supported: [{ name: "powerState" }],
-                  proactivelyReported: true,
-                  retrievable: true
-                }
-              }
-            ]
-          }
-        ]
-      }
+// ===================== EFFECT TRIGGERING =====================
+// This function triggers contact sensor state changes
+async function triggerContactSensor(sensorId, effect) {
+  try {
+    console.log(`🎭 Triggering contact sensor: ${sensorId} for effect: ${effect}`);
+    
+    const storageKey = 'alexa_main_tokens';
+    const accessToken = alexaUserSessions.get(storageKey);
+    
+    if (!accessToken) {
+      console.warn('⚠️ No access token available for sending change reports');
+      return { success: false, message: 'No Alexa connection' };
     }
-  };
-  
-  console.log('Sending discovery response:', JSON.stringify(response, null, 2));
-  res.json(response);
-});
-
-// Also add a GET endpoint for easy testing in browser
-app.get('/test-discovery', (req, res) => {
-  const response = {
-    event: {
-      header: {
-        namespace: "Alexa.Discovery",
-        name: "Discover.Response",
-        messageId: "test-message-123",
-        payloadVersion: "3"
-      },
-      payload: {
-        endpoints: [
-          {
-            endpointId: "test-blackout",
-            manufacturerName: "Haunted House",
-            friendlyName: "Test Blackout Effect",
-            description: "Test device for discovery",
-            displayCategories: ["SWITCH"],
-            capabilities: [
-              {
-                type: "AlexaInterface",
-                interface: "Alexa.PowerController",
-                version: "3",
-                properties: {
-                  supported: [{ name: "powerState" }],
-                  proactivelyReported: true,
-                  retrievable: true
-                }
-              }
-            ]
-          }
-        ]
+    
+    // Change sensor state to OPEN (detected)
+    deviceStates.set(sensorId, "DETECTED");
+    
+    // Send change report to Alexa
+    await sendAlexaChangeReport(sensorId, "DETECTED", accessToken);
+    
+    // Reset sensor state after a short delay
+    setTimeout(async () => {
+      try {
+        deviceStates.set(sensorId, "NOT_DETECTED");
+        await sendAlexaChangeReport(sensorId, "NOT_DETECTED", accessToken);
+        console.log(`🔄 Reset sensor: ${sensorId}`);
+      } catch (error) {
+        console.error(`❌ Failed to reset sensor ${sensorId}:`, error.message);
       }
-    }
-  };
-  
-  res.json(response);
-});
+    }, 2000); // Reset after 2 seconds
+    
+    return { success: true, message: `Triggered ${effect}` };
+  } catch (error) {
+    console.error(`❌ Failed to trigger sensor ${sensorId}:`, error.message);
+    return { success: false, message: error.message };
+  }
+}
 
 // ===================== ROUTES =====================
 app.post('/alexa/smarthome', async (req, res) => {
@@ -542,6 +371,7 @@ app.post('/alexa/smarthome', async (req, res) => {
   const { directive } = req.body;
   const authHeader = req.headers.authorization;
 
+  // Handle discovery without auth token
   if (directive?.header?.namespace === 'Alexa.Discovery' && directive?.header?.name === 'Discover') {
     return handleAlexaDiscovery(directive, res);
   }
@@ -560,8 +390,11 @@ app.post('/alexa/smarthome', async (req, res) => {
     switch (directive.header.namespace) {
       case 'Alexa.Discovery':
         return handleAlexaDiscovery(directive, res);
-      case 'Alexa.PowerController':
-        return handleAlexaPowerControl(directive, res);
+      case 'Alexa':
+        if (directive.header.name === 'ReportState') {
+          return handleAlexaStateReport(directive, res);
+        }
+        break;
       default:
         return res.status(400).json({ error: 'UNSUPPORTED_OPERATION' });
     }
@@ -571,13 +404,47 @@ app.post('/alexa/smarthome', async (req, res) => {
   }
 });
 
-app.post('/api/trigger-direct', (req, res) => {
+// Updated trigger endpoint to use contact sensors
+app.post('/api/trigger-direct', async (req, res) => {
   const { effect } = req.body;
   console.log('🎭 Direct effect trigger:', effect);
-  res.json({ success: true, message: `Direct trigger: ${effect}`, effect: effect });
+  
+  // Map effects to sensor IDs
+  const effectToSensor = {
+    'blackout': 'haunted-blackout-sensor',
+    'flash-red': 'haunted-flash-red-sensor', 
+    'plug-on': 'haunted-plug-on-sensor',
+    'reset': 'haunted-reset-sensor'
+  };
+  
+  const sensorId = effectToSensor[effect];
+  if (!sensorId) {
+    return res.status(400).json({ 
+      success: false, 
+      message: `Unknown effect: ${effect}` 
+    });
+  }
+  
+  const result = await triggerContactSensor(sensorId, effect);
+  res.json(result);
 });
 
-// Add this endpoint to check Alexa connection status
+// New endpoint to trigger specific sensor
+app.post('/api/trigger-sensor', async (req, res) => {
+  const { sensorId, effect } = req.body;
+  console.log(`🎭 Triggering sensor: ${sensorId} for effect: ${effect}`);
+  
+  const result = await triggerContactSensor(sensorId, effect || 'manual');
+  res.json(result);
+});
+
+// Endpoint to get sensor states
+app.get('/api/sensor-states', (req, res) => {
+  const states = Object.fromEntries(deviceStates.entries());
+  res.json({ states });
+});
+
+// ===================== ALEXA CONNECTION STATUS =====================
 app.get('/api/alexa/status', (req, res) => {
   try {
     const storageKey = 'alexa_main_tokens';
@@ -600,164 +467,7 @@ app.get('/api/alexa/status', (req, res) => {
   }
 });
 
-
-// Add this endpoint to test Alexa API connectivity
-app.get('/api/test-alexa-connection', async (req, res) => {
-  try {
-    const storageKey = 'alexa_main_tokens';
-    const accessToken = alexaUserSessions.get(storageKey);
-    
-    if (!accessToken) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'No access token found. Please connect to Alexa first.' 
-      });
-    }
-    
-    // Test the devices API
-    console.log('Testing Alexa devices API...');
-    const devicesResponse = await axios.get('https://api.amazonalexa.com/v1/devices', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
-      },
-      timeout: 10000
-    });
-    
-    res.json({
-      success: true,
-      message: 'Alexa API connection successful!',
-      devicesCount: devicesResponse.data.devices ? devicesResponse.data.devices.length : 0
-    });
-  } catch (error) {
-    console.error('Alexa API test failed:', error.response?.data || error.message);
-    res.status(500).json({
-      success: false,
-      message: 'Alexa API test failed',
-      error: error.response?.data || error.message
-    });
-  }
-});
-
-// New endpoint to setup routines automatically
-app.post('/api/setup-routines', async (req, res) => {
-  try {
-    const storageKey = 'alexa_main_tokens';
-    const accessToken = alexaUserSessions.get(storageKey);
-    
-    if (!accessToken) {
-      return res.status(401).json({ success: false, message: 'Not authenticated with Alexa' });
-    }
-    
-    const result = await setupAutomaticRoutines(accessToken);
-    res.json(result);
-  } catch (error) {
-    console.error('Routine setup error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Add this endpoint to test routine creation
-app.post('/api/test-routine', async (req, res) => {
-  try {
-    const storageKey = 'alexa_main_tokens';
-    const accessToken = alexaUserSessions.get(storageKey);
-    
-    if (!accessToken) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'No access token found. Please connect to Alexa first.' 
-      });
-    }
-    
-    // Get a device to use in the routine
-    const devices = await getAlexaDevices(accessToken);
-    if (devices.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'No devices found to create routine with'
-      });
-    }
-    
-    const targetDevice = devices[0];
-    
-    // Create a simple test routine
-    const routineData = {
-      name: "Test Routine - Haunted House",
-      trigger: {
-        type: "SmartHome.DeviceActivation",
-        payload: {
-          device: {
-            deviceId: "haunted-blackout", // Your virtual device
-            type: "Alexa.Scene"
-          },
-          activation: {
-            type: "TURN_ON",
-            value: "true"
-          }
-        }
-      },
-      actions: [
-        {
-          type: "SmartHome.Control",
-          parameters: {
-            devices: [targetDevice.deviceId],
-            action: "turnOff"
-          }
-        }
-      ]
-    };
-    
-    console.log('Creating test routine:', JSON.stringify(routineData, null, 2));
-    
-    const response = await axios.post('https://api.amazonalexa.com/v1/routines', routineData, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      timeout: 15000
-    });
-    
-    res.json({
-      success: true,
-      message: 'Test routine created successfully!',
-      routineId: response.data.id,
-      targetDevice: targetDevice.friendlyName
-    });
-  } catch (error) {
-    console.error('Routine creation test failed:', error.response?.data || error.message);
-    res.status(500).json({
-      success: false,
-      message: 'Routine creation test failed',
-      error: error.response?.data || error.message
-    });
-  }
-});
-
-// ===================== AUTHENTICATION (UPDATED SCOPES) =====================
-app.post('/api/alexa/handle-grant', async (req, res) => {
-  try {
-    const { grantCode } = req.body;
-    console.log('🔐 Handling grant code:', grantCode);
-    const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', {
-      grant_type: 'authorization_code',
-      code: grantCode,
-      client_id: process.env.LWA_CLIENT_ID,
-      client_secret: process.env.LWA_CLIENT_SECRET,
-      redirect_uri: 'https://haunted-production.up.railway.app/auth/alexa/callback'
-    }, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
-    
-    const tokens = tokenResponse.data;
-    console.log('✅ Grant exchange successful');
-    const storageKey = 'alexa_grant_tokens';
-    alexaUserSessions.set(storageKey, tokens.access_token);
-    alexaRefreshTokens.set(storageKey, tokens.refresh_token);
-    res.json({ success: true, message: 'Grant handled successfully' });
-  } catch (error) {
-    console.error('Grant handling failed:', error.message);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
+// ===================== AUTHENTICATION (FIXED SCOPES) =====================
 async function refreshAlexaToken() {
   try {
     const storageKey = 'alexa_main_tokens';
@@ -799,12 +509,8 @@ app.get('/auth/alexa', (req, res) => {
   req.session.authState = state;
   req.session.authRedirectUri = redirect_uri;
   
-  // Updated scopes to include routine management
-  const scopes = [
-    'profile',
-    'alexa::household:routines:read',
-    'alexa::household:routines:write'
-  ].join(' ');
+  // Fixed scopes - ONLY use smart_home for smart home skills
+  const scopes = 'alexa::ask:skills:readwrite alexa::ask:models:readwrite';
   
   const amazonAuthUrl = new URL('https://www.amazon.com/ap/oa');
   amazonAuthUrl.searchParams.set('client_id', client_id);
@@ -827,7 +533,7 @@ app.get('/auth/alexa/callback', async (req, res) => {
       code: code,
       client_id: process.env.LWA_CLIENT_ID,
       client_secret: process.env.LWA_CLIENT_SECRET,
-      redirect_uri: 'https://haunted-production.up.railway.app/auth/alexa/callback'
+      redirect_uri: `${process.env.RAILWAY_URL || 'https://haunted-production.up.railway.app'}/auth/alexa/callback`
     }, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10000 });
     
     const tokens = tokenResponse.data;
@@ -837,19 +543,125 @@ app.get('/auth/alexa/callback', async (req, res) => {
     alexaRefreshTokens.set(storageKey, tokens.refresh_token);
     console.log('✅ Tokens stored with fixed key');
     
-    // Try to automatically setup routines after successful auth
-    try {
-      await setupAutomaticRoutines(tokens.access_token);
-      console.log('✅ Automatic routine setup attempted');
-    } catch (routineError) {
-      console.log('⚠️ Automatic routine setup failed, user will need manual setup:', routineError.message);
-    }
-    
     res.redirect('/?alexaConnected=1');
   } catch (error) {
     console.error('💥 Token exchange failed:', error.message);
     res.redirect('/?alexaError=1&message=' + encodeURIComponent(error.message));
   }
+});
+
+// Grant handler for smart home skills
+app.post('/api/alexa/handle-grant', async (req, res) => {
+  try {
+    const { directive } = req.body;
+    console.log('🔐 Handling AcceptGrant directive:', JSON.stringify(directive, null, 2));
+    
+    if (directive?.header?.name === 'AcceptGrant') {
+      const grantCode = directive.payload.grant.code;
+      const granteeToken = directive.payload.grantee.token;
+      
+      console.log('🔑 Exchanging grant code for event gateway access...');
+      
+      const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', {
+        grant_type: 'authorization_code',
+        code: grantCode,
+        client_id: process.env.LWA_CLIENT_ID,
+        client_secret: process.env.LWA_CLIENT_SECRET
+      }, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+      
+      const tokens = tokenResponse.data;
+      console.log('✅ Grant exchange successful');
+      
+      // Store event gateway tokens
+      const storageKey = `alexa_event_${granteeToken}`;
+      alexaUserSessions.set(storageKey, tokens.access_token);
+      alexaRefreshTokens.set(storageKey, tokens.refresh_token);
+      
+      // Also store as main tokens for backwards compatibility
+      alexaUserSessions.set('alexa_main_tokens', tokens.access_token);
+      alexaRefreshTokens.set('alexa_main_tokens', tokens.refresh_token);
+      
+      const response = {
+        event: {
+          header: {
+            namespace: "Alexa.Authorization",
+            name: "AcceptGrant.Response",
+            messageId: directive.header.messageId,
+            payloadVersion: "3"
+          },
+          payload: {}
+        }
+      };
+      
+      res.json(response);
+    } else {
+      res.status(400).json({ error: 'Invalid directive' });
+    }
+  } catch (error) {
+    console.error('Grant handling failed:', error.message);
+    res.status(500).json({ 
+      event: {
+        header: {
+          namespace: "Alexa",
+          name: "ErrorResponse",
+          messageId: crypto.randomUUID(),
+          payloadVersion: "3"
+        },
+        payload: {
+          type: "INTERNAL_ERROR",
+          message: error.message
+        }
+      }
+    });
+  }
+});
+
+// Test endpoints
+app.get('/debug/discovery', (req, res) => {
+  console.log('🔍 Debug discovery endpoint called');
+  
+  const testResponse = {
+    event: {
+      header: {
+        namespace: "Alexa.Discovery",
+        name: "Discover.Response",
+        messageId: "debug-message-123",
+        payloadVersion: "3"
+      },
+      payload: {
+        endpoints: [
+          {
+            endpointId: "test-blackout-sensor",
+            manufacturerName: "Haunted House",
+            friendlyName: "Test Blackout Sensor",
+            description: "Test contact sensor for discovery debugging",
+            displayCategories: ["CONTACT_SENSOR"],
+            capabilities: [
+              {
+                type: "AlexaInterface",
+                interface: "Alexa.ContactSensor",
+                version: "3",
+                properties: {
+                  supported: [{ name: "detectionState" }],
+                  proactivelyReported: true,
+                  retrievable: true
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  };
+  
+  console.log('📤 Sending test discovery response');
+  res.json(testResponse);
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Haunted House server running on port ${PORT}`);
+  console.log(`📱 Contact sensors initialized and ready for triggering`);
 });
 
 
