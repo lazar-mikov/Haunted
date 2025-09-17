@@ -7,7 +7,6 @@ const restartBtn = document.getElementById("restart");
 // Add this near the top with your other variable declarations
 let lightsConfigured = false;
 
-
 // ——— autoplay if we arrived from /connect?state=/watch?autoplay=1 ———
 const params = new URLSearchParams(location.search);
 const shouldAutoplay = params.get("autoplay") === "1";
@@ -32,6 +31,57 @@ const cues = schedule.map(c => {
 // ——— fire a cue slightly EARLY to account for cloud/Alexa latency ———
 const EARLY_MS = 1200;
 
+// Setup lights function - FIXED and moved outside fireEffect
+async function setupLights() {
+  try {
+    const lightStatusElement = document.getElementById('light-status');
+    if (lightStatusElement) {
+      lightStatusElement.textContent = 'FINDING LIGHTS...';
+      lightStatusElement.style.color = '#FFA500';
+    }
+    
+    // Use the instant discovery endpoint
+    const response = await fetch('/api/lights/instant-discover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include'
+    });
+    const data = await response.json();
+    
+    if (data.success && data.lightsFound > 0) {
+      lightsConfigured = true;
+      if (lightStatusElement) {
+        lightStatusElement.textContent = `${data.lightsFound} LIGHTS READY`;
+        lightStatusElement.style.color = '#4CAF50';
+      }
+      console.log(`✅ Found ${data.lightsFound} lights!`, data.lights);
+      
+      // Auto-test the lights with a quick flash
+      setTimeout(() => {
+        fetch('/api/lights/test', {
+          method: 'POST',
+          credentials: 'include'
+        });
+      }, 500);
+    } else {
+      lightsConfigured = false;
+      if (lightStatusElement) {
+        lightStatusElement.textContent = 'NO LIGHTS FOUND';
+        lightStatusElement.style.color = '#888';
+      }
+      console.log('No lights found on network');
+    }
+  } catch (error) {
+    console.error('Error setting up lights:', error);
+    lightsConfigured = false;
+    const lightStatusElement = document.getElementById('light-status');
+    if (lightStatusElement) {
+      lightStatusElement.textContent = 'LIGHT CONNECTION ERROR';
+      lightStatusElement.style.color = '#FF0000';
+    }
+  }
+}
+
 async function fireEffect(effect, extraPayload) {
   try {
     let success = false;
@@ -55,41 +105,6 @@ async function fireEffect(effect, extraPayload) {
         console.log("Direct light trigger failed:", lightError);
       }
     }
-
-    // Add this function to your code
-async function setupLights() {
-  try {
-    const response = await fetch('/api/lights/setup', {
-      method: 'POST',
-      credentials: 'include'
-    });
-    const data = await response.json();
-    
-    if (data.success) {
-      lightsConfigured = true;
-      const lightStatusElement = document.getElementById('light-status');
-      if (lightStatusElement) {
-        lightStatusElement.textContent = 'LIGHTS CONNECTED';
-        lightStatusElement.style.color = '#4CAF50';
-      }
-      console.log('Lights setup successful:', data);
-    } else {
-      console.error('Lights setup failed:', data.error);
-      const lightStatusElement = document.getElementById('light-status');
-      if (lightStatusElement) {
-        lightStatusElement.textContent = 'LIGHTS SETUP FAILED';
-        lightStatusElement.style.color = '#FF0000';
-      }
-    }
-  } catch (error) {
-    console.error('Error setting up lights:', error);
-    const lightStatusElement = document.getElementById('light-status');
-    if (lightStatusElement) {
-      lightStatusElement.textContent = 'LIGHTS CONNECTION ERROR';
-      lightStatusElement.style.color = '#FF0000';
-    }
-  }
-}
     
     // Try unified trigger endpoint (controls both lights and Alexa sensors)
     if (!success) {
@@ -116,25 +131,27 @@ async function setupLights() {
     
     // Fallback to IFTTT if nothing else worked
     if (!success) {
-      const r = await fetch("/api/trigger", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ effect, payload: extraPayload || {} })
-      });
-      const j = await r.json();
-      if (!j.ok) throw new Error(j.error || "All trigger methods failed");
-      if (statusBox) statusBox.textContent = `effect: ${effect} → ${j.via}`;
-      console.log("Triggered via IFTTT fallback:", effect, j.via, j);
+      try {
+        const r = await fetch("/api/trigger", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ effect, payload: extraPayload || {} })
+        });
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error || "All trigger methods failed");
+        if (statusBox) statusBox.textContent = `effect: ${effect} → ${j.via}`;
+        console.log("Triggered via IFTTT fallback:", effect, j.via, j);
+      } catch (iftttError) {
+        console.log("IFTTT trigger also failed:", iftttError);
+      }
     }
   } catch (e) {
     if (statusBox) statusBox.textContent = `effect: ${effect} → ERROR`;
     console.error(e);
-    alert("All trigger methods failed: " + e.message);
+    // Don't alert on every failure - just log it
   }
 }
-
-
 
 // Quick test functions for console
 window.testEffect = async (effect = "blackout") => {
@@ -163,7 +180,7 @@ async function checkAlexaConnection() {
     window.hasAlexaConnected = data.connected;
     return data.connected;
   } catch (error) {
-    console.log("No Alexa connection detected, using IFTTT fallback");
+    console.log("No Alexa connection detected");
     window.hasAlexaConnected = false;
     return false;
   }
@@ -235,6 +252,7 @@ window.connectAlexa = connectAlexa;
 window.disconnectAlexa = disconnectAlexa;
 window.checkAlexaConnection = checkAlexaConnection;
 window.updateAlexaStatus = updateAlexaStatus;
+window.setupLights = setupLights;
 
 // Expose a manual tester in console
 window.fx = (name) => fireEffect(name, { origin: "manual" });
@@ -244,21 +262,21 @@ if (film) {
   let rafId = null;
 
   function tick() {
-  const nowMs = film.currentTime * 1000;
-  for (const c of cues) {
-    if (!c.fired && nowMs >= (c.t - EARLY_MS)) {
-      c.fired = true;
-      fireEffect(c.effect, { 
-        origin: "video", 
-        at_ms: Math.round(nowMs), 
-        cue_time: c.t / 1000,
-        src: c.src 
-      });
-      console.log(`🎬 Triggered ${c.effect} at ${c.t/1000}s (video time: ${nowMs/1000}s)`);
+    const nowMs = film.currentTime * 1000;
+    for (const c of cues) {
+      if (!c.fired && nowMs >= (c.t - EARLY_MS)) {
+        c.fired = true;
+        fireEffect(c.effect, { 
+          origin: "video", 
+          at_ms: Math.round(nowMs), 
+          cue_time: c.t / 1000,
+          src: c.src 
+        });
+        console.log(`🎬 Triggered ${c.effect} at ${c.t/1000}s (video time: ${nowMs/1000}s)`);
+      }
     }
+    rafId = requestAnimationFrame(tick);
   }
-  rafId = requestAnimationFrame(tick);
-}
 
   film.addEventListener("play", () => {
     if (rafId) cancelAnimationFrame(rafId);
@@ -298,9 +316,7 @@ if (restartBtn && film) {
   };
 }
 
-// ——— Alexa connection status ———
-// Check Alexa connection when page loads
-// Check connections when page loads
+// ——— Check connections when page loads ———
 document.addEventListener('DOMContentLoaded', () => {
   checkAlexaConnection().then(updateAlexaStatus);
   
@@ -321,10 +337,11 @@ document.addEventListener('DOMContentLoaded', () => {
     lightStatus.id = 'light-status';
     lightStatus.style.marginLeft = '10px';
     lightStatus.style.color = '#888';
-    lightStatus.textContent = 'Checking lights...';
+    lightStatus.textContent = 'FINDING LIGHTS...';
     statusBox.parentNode.appendChild(lightStatus);
   }
 });
+
 // ——— Alexa test function ———
 window.testAlexa = async (effect = "blackout") => {
   try {
