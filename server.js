@@ -56,9 +56,9 @@ app.use(express.static("public"));
 function getLocalNetworkPrefix() {
   const interfaces = networkInterfaces();
   for (const name of Object.keys(interfaces)) {
-    for (const interface of interfaces[name]) {
-      if (interface.family === 'IPv4' && !interface.internal) {
-        const ip = interface.address;
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        const ip = iface.address;
         const parts = ip.split('.');
         return `${parts[0]}.${parts[1]}.${parts[2]}`;
       }
