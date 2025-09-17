@@ -51,24 +51,24 @@
       }
 
       .light-controls {
-  margin: 20px 0;
-  padding: 15px;
-  border: 1px solid #333;
-  border-radius: 8px;
-  background: #111;
-  text-align: center;
-}
+        margin: 20px 0;
+        padding: 15px;
+        border: 1px solid #333;
+        border-radius: 8px;
+        background: #111;
+        text-align: center;
+      }
 
-.light-controls h3 {
-  margin: 0 0 10px 0;
-  color: #fff;
-}
+      .light-controls h3 {
+        margin: 0 0 10px 0;
+        color: #fff;
+      }
 
-#light-status {
-  font-family: monospace;
-  font-size: 0.9rem;
-  padding: 5px;
-}
+      #light-status {
+        font-family: monospace;
+        font-size: 0.9rem;
+        padding: 5px;
+      }
     </style>
   </head>
   <body>
@@ -94,67 +94,159 @@
     </div>
 
     <!-- Light Control Section -->
-<div class="light-controls">
-  <h3>Smart Light Control</h3>
-  <button id="btnSetupLights" onclick="setupLights()">Setup Lights</button>
-  <button id="btnTestLights" onclick="testLights()">Test Lights</button>
-  <div id="light-status" style="margin: 10px 0; color: #888;">
-    Lights not configured
-  </div>
-</div>
+    <div class="light-controls">
+      <h3>Smart Light Control</h3>
+      <button id="btnSetupLights">Setup Lights</button>
+      <button id="btnTestLights">Test Lights</button>
+      <div id="light-status" style="margin: 10px 0; color: #888;">
+        Lights not configured
+      </div>
+    </div>
 
-<!-- Updated Test Button -->
-<button id="btnBlackoutDirect" onclick="fireEffect('blackout', {origin: 'manual_test'})">
-  Test All Systems
-</button>
+    <!-- Updated Test Button -->
+    <button id="btnBlackoutDirect">Test All Systems</button>
 
     <!-- Connection & Test Buttons -->
-    <button id="btnConnect" onclick="window.open('https://ifttt.com/connections/rbgN3WXF-haunted-demo', '_blank')">
-  Connect Smart Home
-</button>
+    <button id="btnConnect">Connect Smart Home</button>
     <button id="btnBlackout">Test Blackout Effect</button>
 
     <!-- Status Log -->
     <div id="log"></div>
 
-    <!-- Include your app.js -->
-    <script src="/app.js"></script>
-
     <script>
-      const logEl = document.getElementById('log');
-      const log = (msg) => { logEl.textContent += (logEl.textContent ? '\n' : '') + msg; };
-
-      document.getElementById('btnConnect').addEventListener('click', () => {
-        location.href = 'https://ifttt.com/connections/rbgN3WXF-haunted-demo';
-      });
-
-      document.getElementById('btnBlackout').addEventListener('click', async () => {
-        log('Testing blackout effect…');
+      // Define the setupLights function first
+      let lightsConfigured = false;
+      
+      async function setupLights() {
         try {
-          const r = await fetch('/api/trigger', {
+          const response = await fetch('/api/lights/setup', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ effect: 'blackout' })
+            credentials: 'include'
           });
-          const data = await r.json();
-          log('Response: ' + JSON.stringify(data));
-        } catch (e) {
-          log('Error: ' + e.message);
+          const data = await response.json();
+          
+          if (data.success) {
+            lightsConfigured = true;
+            const lightStatusElement = document.getElementById('light-status');
+            if (lightStatusElement) {
+              lightStatusElement.textContent = 'LIGHTS CONNECTED';
+              lightStatusElement.style.color = '#4CAF50';
+            }
+            console.log('Lights setup successful:', data);
+          } else {
+            console.error('Lights setup failed:', data.error);
+            const lightStatusElement = document.getElementById('light-status');
+            if (lightStatusElement) {
+              lightStatusElement.textContent = 'LIGHTS SETUP FAILED';
+              lightStatusElement.style.color = '#FF0000';
+            }
+          }
+        } catch (error) {
+          console.error('Error setting up lights:', error);
+          const lightStatusElement = document.getElementById('light-status');
+          if (lightStatusElement) {
+            lightStatusElement.textContent = 'LIGHTS CONNECTION ERROR';
+            lightStatusElement.style.color = '#FF0000';
+          }
+        }
+      }
+      
+      function testLights() {
+        fireEffect('blackout', {origin: 'manual_test'});
+      }
+      
+      // Add event listeners when the DOM is fully loaded
+      document.addEventListener('DOMContentLoaded', function() {
+        // Setup lights button
+        const btnSetupLights = document.getElementById('btnSetupLights');
+        if (btnSetupLights) {
+          btnSetupLights.addEventListener('click', setupLights);
+        }
+        
+        // Test lights button
+        const btnTestLights = document.getElementById('btnTestLights');
+        if (btnTestLights) {
+          btnTestLights.addEventListener('click', testLights);
+        }
+        
+        // Test all systems button
+        const btnBlackoutDirect = document.getElementById('btnBlackoutDirect');
+        if (btnBlackoutDirect) {
+          btnBlackoutDirect.addEventListener('click', function() {
+            fireEffect('blackout', {origin: 'manual_test'});
+          });
+        }
+        
+        // Connect button
+        const btnConnect = document.getElementById('btnConnect');
+        if (btnConnect) {
+          btnConnect.addEventListener('click', function() {
+            window.open('https://ifttt.com/connections/rbgN3WXF-haunted-demo', '_blank');
+          });
+        }
+        
+        // Blackout test button
+        const btnBlackout = document.getElementById('btnBlackout');
+        if (btnBlackout) {
+          btnBlackout.addEventListener('click', async function() {
+            const logEl = document.getElementById('log');
+            const log = (msg) => { logEl.textContent += (logEl.textContent ? '\n' : '') + msg; };
+            
+            log('Testing blackout effect…');
+            try {
+              const r = await fetch('/api/trigger', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ effect: 'blackout' })
+              });
+              const data = await r.json();
+              log('Response: ' + JSON.stringify(data));
+            } catch (e) {
+              log('Error: ' + e.message);
+            }
+          });
+        }
+        
+        // Video event listeners for debugging
+        const film = document.getElementById('film');
+        if (film) {
+          film.addEventListener('timeupdate', () => {
+            document.title = `Haunted Demo - ${Math.floor(film.currentTime)}s`;
+          });
+
+          film.addEventListener('play', () => {
+            const logEl = document.getElementById('log');
+            const log = (msg) => { logEl.textContent += (logEl.textContent ? '\n' : '') + msg; };
+            log('Video started playing at ' + film.currentTime + 's');
+          });
+        }
+        
+        // Set up other UI elements
+        const unmuteBtn = document.getElementById('unmute');
+        const restartBtn = document.getElementById('restart');
+        
+        if (unmuteBtn && film) {
+          unmuteBtn.addEventListener('click', () => { 
+            film.muted = false; 
+            film.volume = 1.0; 
+          });
+        }
+        
+        if (restartBtn && film) {
+          restartBtn.addEventListener('click', () => {
+            // Reset cues for replay
+            if (window.cues) {
+              for (const c of window.cues) c.fired = false;
+            }
+            film.currentTime = 0;
+            film.play().catch(()=>{});
+          });
         }
       });
-
-      // Add video event listeners for debugging
-      const film = document.getElementById('film');
-      if (film) {
-        film.addEventListener('timeupdate', () => {
-          document.title = `Haunted Demo - ${Math.floor(film.currentTime)}s`;
-        });
-
-        film.addEventListener('play', () => {
-          log('Video started playing at ' + film.currentTime + 's');
-        });
-      }
     </script>
+    
+    <!-- Include your app.js AFTER defining the setupLights function -->
+    <script src="/app.js"></script>
   </body>
 </html>
