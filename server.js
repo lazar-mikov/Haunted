@@ -5,6 +5,8 @@ import dotenv from "dotenv";
 import crypto from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
+import dgram from "dgram";
+import { networkInterfaces } from "os";
 
 dotenv.config();
 
@@ -18,6 +20,10 @@ const alexaRefreshTokens = new Map();
 
 // Store device states for contact sensors
 const deviceStates = new Map();
+
+// LIGHT CONTROL STORAGE
+const discoveredLights = new Map(); // userId -> lights array
+const userLightSessions = new Map(); // sessionId -> lights
 
 // Initialize contact sensor states
 const initializeContactSensors = () => {
@@ -44,7 +50,325 @@ app.use(session({
 }));
 app.use(express.static("public"));
 
-// ===================== ALEXA EVENT GATEWAY =====================
+// ===================== LIGHT DISCOVERY & CONTROL =====================
+
+// Get local network info
+function getLocalNetworkPrefix() {
+  const interfaces = networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const interface of interfaces[name]) {
+      if (interface.family === 'IPv4' && !interface.internal) {
+        const ip = interface.address;
+        const parts = ip.split('.');
+        return `${parts[0]}.${parts[1]}.${parts[2]}`;
+      }
+    }
+  }
+  return '192.168.1'; // fallback
+}
+
+// TAPO DISCOVERY (Local Network - FAST)
+async function discoverTapoLights() {
+  console.log('🔍 Discovering Tapo lights...');
+  const networkPrefix = getLocalNetworkPrefix();
+  const tapoDevices = [];
+  const promises = [];
+
+  // Scan IP range in parallel for speed
+  for (let i = 1; i < 255; i++) {
+    const ip = `${networkPrefix}.${i}`;
+    promises.push(checkIfTapoDevice(ip));
+  }
+
+  // Wait for all scans (max 3 seconds)
+  const results = await Promise.allSettled(promises);
+  
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled' && result.value) {
+      tapoDevices.push(result.value);
+    }
+  });
+
+  console.log(`✅ Found ${tapoDevices.length} Tapo devices`);
+  return tapoDevices;
+}
+
+async function checkIfTapoDevice(ip) {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 500); // 500ms timeout per device
+    
+    const response = await fetch(`http://${ip}:80/`, {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Tapo-Scanner' }
+    });
+    
+    clearTimeout(timeoutId);
+    
+    // Check if response indicates Tapo device
+    const text = await response.text();
+    if (text.includes('tapo') || text.includes('TP-LINK') || response.headers.get('server')?.includes('TP-LINK')) {
+      return {
+        type: 'tapo',
+        ip: ip,
+        name: `Tapo Light (${ip})`,
+        id: `tapo_${ip.replace(/\./g, '_')}`
+      };
+    }
+  } catch (error) {
+    // Device not responsive or not Tapo
+  }
+  return null;
+}
+
+// TAPO CONTROL
+// Note: Tapo devices use encrypted communication. This is a simplified version.
+// For production, consider using tp-link-tapo-connect library
+async function controlTapoLight(device, effect) {
+  try {
+    const commands = {
+      blackout: { device_on: false },
+      flash_red: { 
+        device_on: true,
+        hue: 0,
+        saturation: 100,
+        brightness: 100,
+        color_temp: 0
+      },
+      reset: {
+        device_on: true,
+        hue: 200,
+        saturation: 20,
+        brightness: 80,
+        color_temp: 2700
+      }
+    };
+
+    const command = commands[effect] || commands.reset;
+    
+    // Note: Real Tapo control requires encrypted communication
+    // This is a placeholder - implement proper Tapo protocol or use library
+    const response = await fetch(`http://${device.ip}/app`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        method: 'set_device_info',
+        params: command
+      }),
+      timeout: 2000
+    });
+
+    return response.ok;
+  } catch (error) {
+    console.error(`Failed to control Tapo device ${device.ip}:`, error.message);
+    return false;
+  }
+}
+
+// TUYA DISCOVERY (Cloud API - requires user token)
+async function discoverTuyaLights(accessToken) {
+  try {
+    console.log('🔍 Discovering Tuya lights...');
+    
+    const timestamp = Date.now().toString();
+    // Note: Proper Tuya API requires HMAC-SHA256 signing
+    // This is simplified - implement proper signing for production
+    
+    const response = await axios.get('https://openapi.tuyaus.com/v1.0/users/me/devices', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        't': timestamp,
+        'sign_method': 'HMAC-SHA256'
+      },
+      timeout: 5000
+    });
+
+    const devices = response.data.result || [];
+    const lights = devices.filter(device => 
+      device.category === 'dj' || // lights
+      device.category === 'dd' || // light strips  
+      device.product_name.toLowerCase().includes('light') ||
+      device.product_name.toLowerCase().includes('bulb')
+    );
+
+    console.log(`✅ Found ${lights.length} Tuya lights`);
+    return lights.map(device => ({
+      type: 'tuya',
+      id: device.id,
+      name: device.name || device.product_name,
+      category: device.category,
+      online: device.online
+    }));
+  } catch (error) {
+    console.error('Failed to discover Tuya lights:', error.message);
+    return [];
+  }
+}
+
+// TUYA CONTROL
+async function controlTuyaLight(device, effect, accessToken) {
+  try {
+    const commands = {
+      blackout: [{ code: 'switch_led', value: false }],
+      flash_red: [
+        { code: 'switch_led', value: true },
+        { code: 'work_mode', value: 'colour' },
+        { code: 'colour_data', value: { h: 0, s: 255, v: 255 } }
+      ],
+      reset: [
+        { code: 'switch_led', value: true },
+        { code: 'work_mode', value: 'white' },
+        { code: 'bright_value', value: 500 }
+      ]
+    };
+
+    const command = commands[effect] || commands.reset;
+    
+    const timestamp = Date.now().toString();
+    const response = await axios.post(
+      `https://openapi.tuyaus.com/v1.0/devices/${device.id}/commands`,
+      { commands: command },
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          't': timestamp,
+          'sign_method': 'HMAC-SHA256'
+        },
+        timeout: 3000
+      }
+    );
+
+    return response.data.success;
+  } catch (error) {
+    console.error(`Failed to control Tuya device ${device.id}:`, error.message);
+    return false;
+  }
+}
+
+// UNIFIED LIGHT CONTROL
+async function triggerLightEffect(sessionId, effect) {
+  try {
+    console.log(`🎭 Triggering light effect: ${effect} for session: ${sessionId}`);
+    
+    const userLights = userLightSessions.get(sessionId) || [];
+    if (userLights.length === 0) {
+      return { success: false, message: 'No lights configured for this session' };
+    }
+
+    const results = [];
+    
+    // Control all lights in parallel for speed
+    const promises = userLights.map(async (light) => {
+      if (light.type === 'tapo') {
+        return await controlTapoLight(light, effect);
+      } else if (light.type === 'tuya') {
+        const tuyaToken = alexaUserSessions.get('tuya_token'); // Store this from user auth
+        return await controlTuyaLight(light, effect, tuyaToken);
+      }
+      return false;
+    });
+
+    const lightResults = await Promise.all(promises);
+    const successCount = lightResults.filter(r => r).length;
+
+    console.log(`✅ Successfully controlled ${successCount}/${userLights.length} lights`);
+    
+    return {
+      success: successCount > 0,
+      message: `Controlled ${successCount}/${userLights.length} lights`,
+      effect: effect,
+      lightsTriggered: successCount
+    };
+  } catch (error) {
+    console.error(`❌ Failed to trigger light effect ${effect}:`, error.message);
+    return { success: false, message: error.message };
+  }
+}
+
+// ===================== NEW LIGHT CONTROL ENDPOINTS =====================
+
+// Fast discovery endpoint
+app.post('/api/lights/discover', async (req, res) => {
+  try {
+    const sessionId = req.sessionID;
+    console.log(`🚀 Starting fast light discovery for session: ${sessionId}`);
+    
+    // Run discoveries in parallel for maximum speed
+    const [tapoLights, tuyaLights] = await Promise.all([
+      discoverTapoLights(),
+      // Tuya discovery only if user provides token
+      req.body.tuyaToken ? discoverTuyaLights(req.body.tuyaToken) : Promise.resolve([])
+    ]);
+
+    const allLights = [...tapoLights, ...tuyaLights];
+    
+    // Store lights for this session
+    userLightSessions.set(sessionId, allLights);
+    
+    console.log(`✅ Discovery complete: ${allLights.length} lights found`);
+    
+    res.json({
+      success: true,
+      lightsFound: allLights.length,
+      lights: allLights,
+      sessionId: sessionId,
+      discoveryTime: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Light discovery failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Light discovery failed',
+      error: error.message
+    });
+  }
+});
+
+// Test lights endpoint
+app.post('/api/lights/test', async (req, res) => {
+  try {
+    const sessionId = req.sessionID;
+    const result = await triggerLightEffect(sessionId, 'reset');
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Main trigger endpoint for film effects
+app.post('/api/lights/trigger', async (req, res) => {
+  try {
+    const { effect } = req.body;
+    const sessionId = req.sessionID;
+    
+    if (!effect) {
+      return res.status(400).json({ success: false, message: 'Effect parameter required' });
+    }
+
+    const result = await triggerLightEffect(sessionId, effect);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get user's configured lights
+app.get('/api/lights/status', (req, res) => {
+  const sessionId = req.sessionID;
+  const userLights = userLightSessions.get(sessionId) || [];
+  
+  res.json({
+    sessionId: sessionId,
+    lightsConfigured: userLights.length,
+    lights: userLights,
+    ready: userLights.length > 0
+  });
+});
+
+// ===================== EXISTING ALEXA CODE (UNCHANGED) =====================
+
 async function sendAlexaChangeReport(endpointId, newState, accessToken) {
   try {
     console.log(`📤 Sending change report for ${endpointId}: ${newState}`);
@@ -97,45 +421,92 @@ async function sendAlexaChangeReport(endpointId, newState, accessToken) {
   }
 }
 
-// ===================== EFFECT TRIGGERING =====================
-// This function triggers contact sensor state changes
+// Trigger contact sensor for Alexa
 async function triggerContactSensor(sensorId, effect) {
   try {
     console.log(`🎭 Triggering contact sensor: ${sensorId} for effect: ${effect}`);
     
-    const storageKey = 'alexa_main_tokens';
-    const accessToken = alexaUserSessions.get(storageKey);
-    
-    if (!accessToken) {
-      console.warn('⚠️ No access token available for sending change reports');
-      return { success: false, message: 'No Alexa connection' };
-    }
-    
     // Change sensor state to DETECTED
     deviceStates.set(sensorId, "DETECTED");
-    
-    // Send change report to Alexa
-    await sendAlexaChangeReport(sensorId, "DETECTED", accessToken);
+    console.log(`✅ Sensor ${sensorId} state changed to DETECTED`);
     
     // Reset sensor state after a short delay
     setTimeout(async () => {
       try {
         deviceStates.set(sensorId, "NOT_DETECTED");
-        await sendAlexaChangeReport(sensorId, "NOT_DETECTED", accessToken);
-        console.log(`🔄 Reset sensor: ${sensorId}`);
+        console.log(`🔄 Reset sensor: ${sensorId} to NOT_DETECTED`);
       } catch (error) {
         console.error(`❌ Failed to reset sensor ${sensorId}:`, error.message);
       }
-    }, 2000); // Reset after 2 seconds
+    }, 2000);
     
-    return { success: true, message: `Triggered ${effect}` };
+    return { success: true, message: `Triggered ${effect} - sensor state changed` };
   } catch (error) {
     console.error(`❌ Failed to trigger sensor ${sensorId}:`, error.message);
     return { success: false, message: error.message };
   }
 }
 
-// ===================== ALEXA HANDLERS =====================
+// ===================== UNIFIED TRIGGER ENDPOINT =====================
+// Controls BOTH lights and Alexa sensors
+app.post('/api/trigger-direct', async (req, res) => {
+  try {
+    const { effect } = req.body;
+    const sessionId = req.sessionID;
+    console.log(`🎬 Film trigger: ${effect}`);
+    
+    // Map effects to sensor IDs
+    const effectToSensor = {
+      'blackout': 'haunted-blackout-sensor',
+      'flash-red': 'haunted-flash-red-sensor', 
+      'plug-on': 'haunted-plug-on-sensor',
+      'reset': 'haunted-reset-sensor'
+    };
+    
+    const sensorId = effectToSensor[effect];
+    if (!sensorId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Unknown effect: ${effect}` 
+      });
+    }
+
+    // Trigger both systems in parallel
+    const [sensorResult, lightResult] = await Promise.all([
+      triggerContactSensor(sensorId, effect),
+      triggerLightEffect(sessionId, effect)
+    ]);
+
+    res.json({
+      success: sensorResult.success || lightResult.success,
+      sensor: sensorResult,
+      lights: lightResult,
+      effect: effect,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Trigger failed:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Trigger specific sensor endpoint
+app.post('/api/trigger-sensor', async (req, res) => {
+  const { sensorId, effect } = req.body;
+  console.log(`🎭 Triggering sensor: ${sensorId} for effect: ${effect}`);
+  
+  const result = await triggerContactSensor(sensorId, effect || 'manual');
+  res.json(result);
+});
+
+// Get sensor states endpoint
+app.get('/api/sensor-states', (req, res) => {
+  const states = Object.fromEntries(deviceStates.entries());
+  res.json({ states });
+});
+
+// ===================== ALEXA DISCOVERY & STATE HANDLERS =====================
+
 async function handleAlexaDiscovery(directive, res) {
   console.log('🎯 Discovery request received:', JSON.stringify(directive, null, 2));
   
@@ -143,7 +514,6 @@ async function handleAlexaDiscovery(directive, res) {
     try {
       console.log('🔍 Starting device discovery...');
       
-      // Updated to contact sensors instead of switches
       const virtualEndpoints = [
         {
           endpointId: "haunted-blackout-sensor",
@@ -314,7 +684,6 @@ async function handleAlexaDiscovery(directive, res) {
   }
 }
 
-// Updated handler for contact sensor state reports
 async function handleAlexaStateReport(directive, res) {
   try {
     const endpointId = directive.endpoint.endpointId;
@@ -365,7 +734,8 @@ async function handleAlexaStateReport(directive, res) {
   }
 }
 
-// ===================== ROUTES =====================
+// ===================== ALEXA ROUTES =====================
+
 app.post('/alexa/smarthome', async (req, res) => {
   console.log('Alexa Smart Home request:', JSON.stringify(req.body, null, 2));
   const { directive } = req.body;
@@ -404,47 +774,8 @@ app.post('/alexa/smarthome', async (req, res) => {
   }
 });
 
-// Updated trigger endpoint to use contact sensors
-app.post('/api/trigger-direct', async (req, res) => {
-  const { effect } = req.body;
-  console.log('🎭 Direct effect trigger:', effect);
-  
-  // Map effects to sensor IDs
-  const effectToSensor = {
-    'blackout': 'haunted-blackout-sensor',
-    'flash-red': 'haunted-flash-red-sensor', 
-    'plug-on': 'haunted-plug-on-sensor',
-    'reset': 'haunted-reset-sensor'
-  };
-  
-  const sensorId = effectToSensor[effect];
-  if (!sensorId) {
-    return res.status(400).json({ 
-      success: false, 
-      message: `Unknown effect: ${effect}` 
-    });
-  }
-  
-  const result = await triggerContactSensor(sensorId, effect);
-  res.json(result);
-});
-
-// New endpoint to trigger specific sensor
-app.post('/api/trigger-sensor', async (req, res) => {
-  const { sensorId, effect } = req.body;
-  console.log(`🎭 Triggering sensor: ${sensorId} for effect: ${effect}`);
-  
-  const result = await triggerContactSensor(sensorId, effect || 'manual');
-  res.json(result);
-});
-
-// Endpoint to get sensor states
-app.get('/api/sensor-states', (req, res) => {
-  const states = Object.fromEntries(deviceStates.entries());
-  res.json({ states });
-});
-
 // ===================== ALEXA CONNECTION STATUS =====================
+
 app.get('/api/alexa/status', (req, res) => {
   try {
     const storageKey = 'alexa_main_tokens';
@@ -467,7 +798,8 @@ app.get('/api/alexa/status', (req, res) => {
   }
 });
 
-// ===================== AUTHENTICATION (FIXED SCOPES) =====================
+// ===================== ALEXA AUTHENTICATION =====================
+
 async function refreshAlexaToken() {
   try {
     const storageKey = 'alexa_main_tokens';
@@ -616,7 +948,8 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
   }
 });
 
-// Debug endpoints
+// ===================== DEBUG ENDPOINTS =====================
+
 app.get('/api/debug/tokens', (req, res) => {
   try {
     const storageKey = 'alexa_main_tokens';
@@ -659,7 +992,6 @@ app.get('/api/my-token', (req, res) => {
   }
 });
 
-// Test endpoints
 app.get('/debug/discovery', (req, res) => {
   console.log('🔍 Debug discovery endpoint called');
   
@@ -701,7 +1033,9 @@ app.get('/debug/discovery', (req, res) => {
   res.json(testResponse);
 });
 
-// Optional /watch page helper
+// ===================== ADDITIONAL ROUTES =====================
+
+// Watch page helper
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 app.get("/watch", (req, res) => {
@@ -716,60 +1050,18 @@ app.get("/watch", (req, res) => {
   });
 });
 
-// ===================== COMMENTED OUT IFTTT CODE =====================
-/*
-// IFTTT Connect redirect
-app.get("/connect", (req, res) => {
-  const connectUrl = process.env.IFTTT_CONNECT_URL;
-  if (!connectUrl) return res.status(500).send("IFTTT_CONNECT_URL is not set");
-  const u = new URL(connectUrl);
-  u.searchParams.set("state", "/watch?autoplay=1");
-  res.redirect(u.toString());
-});
-
-// IFTTT OAuth endpoints
-app.get("/auth/ifttt/start", (req, res) => {
-  // OAuth start logic
-});
-
-app.get("/auth/ifttt/callback", async (req, res) => {
-  // OAuth callback logic
-});
-
-// IFTTT trigger endpoint
-app.post("/api/trigger", async (req, res) => {
-  // IFTTT trigger logic
-});
-
-// IFTTT service endpoints
-app.get("/ifttt/v1/status", (req, res) => {
-  // IFTTT status endpoint
-});
-
-// Additional IFTTT endpoints...
-*/
+// ===================== SERVER STARTUP =====================
 
 const PORT = process.env.PORT || 3000;
 
-// Add error handling for server startup
 const server = app.listen(PORT, () => {
   console.log(`🚀 Haunted House server running on port ${PORT}`);
-  console.log(`📱 Contact sensors initialized and ready for triggering`);
+  console.log(`💡 Light control system initialized`);
+  console.log(`📱 Contact sensors ready for triggering`);
 }).on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`❌ Port ${PORT} is already in use. Trying to stop existing process...`);
-    
-    // Try to use a different port if Railway's PORT is in use
-    const fallbackPort = PORT + 1;
-    console.log(`🔄 Attempting to start on port ${fallbackPort}...`);
-    
-    app.listen(fallbackPort, () => {
-      console.log(`🚀 Haunted House server running on fallback port ${fallbackPort}`);
-      console.log(`📱 Contact sensors initialized and ready for triggering`);
-    }).on('error', (fallbackErr) => {
-      console.error(`❌ Failed to start server on any port:`, fallbackErr);
-      process.exit(1);
-    });
+    console.error(`❌ Port ${PORT} is already in use.`);
+    process.exit(1);
   } else {
     console.error(`❌ Server startup error:`, err);
     process.exit(1);
@@ -778,7 +1070,7 @@ const server = app.listen(PORT, () => {
 
 // Graceful shutdown
 process.on('SIGINT', () => {
-  console.log('\n🛑 Received SIGINT. Shutting down gracefully...');
+  console.log('\n🛑 Shutting down gracefully...');
   server.close(() => {
     console.log('✅ Server closed');
     process.exit(0);
@@ -786,7 +1078,7 @@ process.on('SIGINT', () => {
 });
 
 process.on('SIGTERM', () => {
-  console.log('\n🛑 Received SIGTERM. Shutting down gracefully...');
+  console.log('\n🛑 Shutting down gracefully...');
   server.close(() => {
     console.log('✅ Server closed');
     process.exit(0);

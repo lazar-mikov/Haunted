@@ -49,6 +49,26 @@
         font-size: 0.9rem;
         text-align: center;
       }
+
+      .light-controls {
+  margin: 20px 0;
+  padding: 15px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: #111;
+  text-align: center;
+}
+
+.light-controls h3 {
+  margin: 0 0 10px 0;
+  color: #fff;
+}
+
+#light-status {
+  font-family: monospace;
+  font-size: 0.9rem;
+  padding: 5px;
+}
     </style>
   </head>
   <body>
@@ -72,6 +92,21 @@
       <p>5s: Blackout Effect ⚡</p>
       <p>12s: Blackout Effect ⚡</p>
     </div>
+
+    <!-- Light Control Section -->
+<div class="light-controls">
+  <h3>Smart Light Control</h3>
+  <button id="btnSetupLights" onclick="setupLights()">Setup Lights</button>
+  <button id="btnTestLights" onclick="testLights()">Test Lights</button>
+  <div id="light-status" style="margin: 10px 0; color: #888;">
+    Lights not configured
+  </div>
+</div>
+
+<!-- Updated Test Button -->
+<button id="btnBlackoutDirect" onclick="fireEffect('blackout', {origin: 'manual_test'})">
+  Test All Systems
+</button>
 
     <!-- Connection & Test Buttons -->
     <button id="btnConnect" onclick="window.open('https://ifttt.com/connections/rbgN3WXF-haunted-demo', '_blank')">
