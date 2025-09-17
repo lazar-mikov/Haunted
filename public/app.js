@@ -30,43 +30,88 @@ const EARLY_MS = 1200;
 
 async function fireEffect(effect, extraPayload) {
   try {
-    // Try Alexa first if user has connected Alexa
-    if (window.hasAlexaConnected) {
+    let success = false;
+    
+    // Try direct light control first (fastest)
+    if (lightsConfigured) {
       try {
-        const alexaResponse = await fetch("/api/alexa/trigger", {
+        const lightResponse = await fetch("/api/lights/trigger", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ effect, ...extraPayload })
         });
-        const alexaData = await alexaResponse.json();
-        if (alexaData.success) {
-          if (statusBox) statusBox.textContent = `effect: ${effect} → ALEXA`;
-          console.log("Triggered via Alexa:", effect, alexaData);
-          return; // Success with Alexa, skip IFTTT
+        const lightData = await lightResponse.json();
+        if (lightData.success) {
+          success = true;
+          if (statusBox) statusBox.textContent = `effect: ${effect} → LIGHTS (${lightData.lightsTriggered})`;
+          console.log("Triggered via direct lights:", effect, lightData);
         }
-      } catch (alexaError) {
-        console.log("Alexa trigger failed, falling back to IFTTT:", alexaError);
+      } catch (lightError) {
+        console.log("Direct light trigger failed:", lightError);
       }
     }
     
-    // Fallback to IFTTT
-    const r = await fetch("/api/trigger", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ effect, payload: extraPayload || {} })
-    });
-    const j = await r.json();
-    if (!j.ok) throw new Error(j.error || "Trigger failed");
-    if (statusBox) statusBox.textContent = `effect: ${effect} → ${j.via}`;
-    console.log("Triggered:", effect, j.via, j);
+    // Try unified trigger endpoint (controls both lights and Alexa sensors)
+    if (!success) {
+      try {
+        const unifiedResponse = await fetch("/api/trigger-direct", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ effect, ...extraPayload })
+        });
+        const unifiedData = await unifiedResponse.json();
+        if (unifiedData.success) {
+          success = true;
+          const methods = [];
+          if (unifiedData.lights?.success) methods.push(`LIGHTS(${unifiedData.lights.lightsTriggered})`);
+          if (unifiedData.sensor?.success) methods.push('ALEXA');
+          if (statusBox) statusBox.textContent = `effect: ${effect} → ${methods.join(' + ')}`;
+          console.log("Triggered via unified endpoint:", effect, unifiedData);
+        }
+      } catch (unifiedError) {
+        console.log("Unified trigger failed:", unifiedError);
+      }
+    }
+    
+    // Fallback to IFTTT if nothing else worked
+    if (!success) {
+      const r = await fetch("/api/trigger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ effect, payload: extraPayload || {} })
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "All trigger methods failed");
+      if (statusBox) statusBox.textContent = `effect: ${effect} → ${j.via}`;
+      console.log("Triggered via IFTTT fallback:", effect, j.via, j);
+    }
   } catch (e) {
     if (statusBox) statusBox.textContent = `effect: ${effect} → ERROR`;
     console.error(e);
-    alert("Trigger failed: " + e.message);
+    alert("All trigger methods failed: " + e.message);
   }
 }
+
+
+// Quick test functions for console
+window.testEffect = async (effect = "blackout") => {
+  console.log(`Testing ${effect} effect...`);
+  await fireEffect(effect, { origin: "manual_test" });
+};
+
+window.lightStatus = async () => {
+  try {
+    const response = await fetch('/api/lights/status', { credentials: 'include' });
+    const data = await response.json();
+    console.log("Light status:", data);
+    return data;
+  } catch (error) {
+    console.error("Failed to get light status:", error);
+  }
+};
 
 // Check if user has Alexa connected
 async function checkAlexaConnection() {
@@ -215,8 +260,12 @@ if (restartBtn && film) {
 
 // ——— Alexa connection status ———
 // Check Alexa connection when page loads
+// Check connections when page loads
 document.addEventListener('DOMContentLoaded', () => {
   checkAlexaConnection().then(updateAlexaStatus);
+  
+  // Auto-setup lights when page loads
+  setupLights();
   
   // Add Alexa status indicator to UI
   if (statusBox) {
@@ -226,9 +275,16 @@ document.addEventListener('DOMContentLoaded', () => {
     alexaStatus.style.color = '#888';
     alexaStatus.textContent = 'Checking Alexa...';
     statusBox.parentNode.appendChild(alexaStatus);
+    
+    // Add light status indicator
+    const lightStatus = document.createElement('span');
+    lightStatus.id = 'light-status';
+    lightStatus.style.marginLeft = '10px';
+    lightStatus.style.color = '#888';
+    lightStatus.textContent = 'Checking lights...';
+    statusBox.parentNode.appendChild(lightStatus);
   }
 });
-
 // ——— Alexa test function ———
 window.testAlexa = async (effect = "blackout") => {
   try {
