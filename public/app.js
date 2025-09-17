@@ -4,6 +4,10 @@ const statusBox = document.getElementById("status");
 const unmuteBtn = document.getElementById("unmute");
 const restartBtn = document.getElementById("restart");
 
+// Add this near the top with your other variable declarations
+let lightsConfigured = false;
+
+
 // ——— autoplay if we arrived from /connect?state=/watch?autoplay=1 ———
 const params = new URLSearchParams(location.search);
 const shouldAutoplay = params.get("autoplay") === "1";
@@ -51,6 +55,41 @@ async function fireEffect(effect, extraPayload) {
         console.log("Direct light trigger failed:", lightError);
       }
     }
+
+    // Add this function to your code
+async function setupLights() {
+  try {
+    const response = await fetch('/api/lights/setup', {
+      method: 'POST',
+      credentials: 'include'
+    });
+    const data = await response.json();
+    
+    if (data.success) {
+      lightsConfigured = true;
+      const lightStatusElement = document.getElementById('light-status');
+      if (lightStatusElement) {
+        lightStatusElement.textContent = 'LIGHTS CONNECTED';
+        lightStatusElement.style.color = '#4CAF50';
+      }
+      console.log('Lights setup successful:', data);
+    } else {
+      console.error('Lights setup failed:', data.error);
+      const lightStatusElement = document.getElementById('light-status');
+      if (lightStatusElement) {
+        lightStatusElement.textContent = 'LIGHTS SETUP FAILED';
+        lightStatusElement.style.color = '#FF0000';
+      }
+    }
+  } catch (error) {
+    console.error('Error setting up lights:', error);
+    const lightStatusElement = document.getElementById('light-status');
+    if (lightStatusElement) {
+      lightStatusElement.textContent = 'LIGHTS CONNECTION ERROR';
+      lightStatusElement.style.color = '#FF0000';
+    }
+  }
+}
     
     // Try unified trigger endpoint (controls both lights and Alexa sensors)
     if (!success) {
@@ -94,6 +133,7 @@ async function fireEffect(effect, extraPayload) {
     alert("All trigger methods failed: " + e.message);
   }
 }
+
 
 
 // Quick test functions for console
