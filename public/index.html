@@ -69,6 +69,132 @@
         font-size: 0.9rem;
         padding: 5px;
       }
+
+      /* Voice Monkey Section Styles */
+      .voice-monkey-section {
+        margin: 30px 0;
+        padding: 20px;
+        border: 2px solid #9b59b6;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #1a1a2e, #0f0f1e);
+        max-width: 600px;
+        width: 100%;
+      }
+
+      .voice-monkey-section h2 {
+        color: #9b59b6;
+        margin-bottom: 20px;
+        text-align: center;
+      }
+
+      .setup-steps {
+        background: #0a0a0a;
+        padding: 20px;
+        border-radius: 8px;
+        margin: 20px 0;
+      }
+
+      .setup-steps h3 {
+        color: #f39c12;
+        margin-bottom: 15px;
+      }
+
+      .step {
+        background: #1a1a1a;
+        padding: 15px;
+        margin: 10px 0;
+        border-left: 4px solid #9b59b6;
+        border-radius: 5px;
+      }
+
+      .step-number {
+        display: inline-block;
+        width: 30px;
+        height: 30px;
+        background: #9b59b6;
+        color: white;
+        text-align: center;
+        line-height: 30px;
+        border-radius: 50%;
+        margin-right: 10px;
+        font-weight: bold;
+      }
+
+      .monkey-name {
+        font-family: 'Courier New', monospace;
+        background: #2c3e50;
+        color: #f39c12;
+        padding: 5px 10px;
+        border-radius: 4px;
+        display: inline-block;
+        margin: 5px 0;
+        font-size: 1.1rem;
+      }
+
+      .copy-btn {
+        background: #27ae60;
+        color: white;
+        padding: 5px 15px;
+        border: none;
+        border-radius: 4px;
+        margin-left: 10px;
+        cursor: pointer;
+        font-size: 0.9rem;
+      }
+
+      .copy-btn:hover {
+        background: #2ecc71;
+      }
+
+      .copy-btn.copied {
+        background: #95a5a6;
+      }
+
+      .test-section {
+        background: #1a1a1a;
+        padding: 15px;
+        border-radius: 8px;
+        margin-top: 20px;
+        text-align: center;
+      }
+
+      .test-btn {
+        background: #e74c3c;
+        margin: 5px;
+        padding: 12px 24px;
+      }
+
+      .test-btn:hover {
+        background: #c0392b;
+      }
+
+      .status-indicator {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-left: 10px;
+        background: #7f8c8d;
+      }
+
+      .status-indicator.ready {
+        background: #2ecc71;
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
+        70% { box-shadow: 0 0 0 10px rgba(46, 204, 113, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
+      }
+
+      .countdown-timer {
+        font-size: 2rem;
+        color: #e74c3c;
+        text-align: center;
+        margin: 20px 0;
+        font-family: 'Courier New', monospace;
+      }
     </style>
   </head>
   <body>
@@ -93,9 +219,78 @@
       <p>12s: Blackout Effect ⚡</p>
     </div>
 
-    <!-- Light Control Section -->
+    <!-- Voice Monkey Section -->
+    <div class="voice-monkey-section">
+      <h2>🐵 Voice Monkey Setup (Demo Mode)</h2>
+      
+      <div class="countdown-timer" id="setup-timer" style="display: none;">
+        Setup Time: <span id="timer-value">60</span>s
+      </div>
+
+      <div class="setup-steps">
+        <h3>Quick Setup Instructions:</h3>
+        
+        <div class="step">
+          <span class="step-number">1</span>
+          <strong>Enable Voice Monkey Skill</strong><br>
+          Say: <em>"Alexa, enable Voice Monkey"</em>
+        </div>
+
+        <div class="step">
+          <span class="step-number">2</span>
+          <strong>Create Three Routines in Alexa App</strong><br>
+          <em>Copy these exact monkey names:</em><br><br>
+          
+          <div>
+            Routine 1: When Voice Monkey triggers<br>
+            <span class="monkey-name">haunted_demo_blackout</span>
+            <button class="copy-btn" onclick="copyToClipboard('haunted_demo_blackout', event)">Copy</button><br>
+            → Action: Turn off all lights
+          </div><br>
+
+          <div>
+            Routine 2: When Voice Monkey triggers<br>
+            <span class="monkey-name">haunted_demo_flash</span>
+            <button class="copy-btn" onclick="copyToClipboard('haunted_demo_flash', event)">Copy</button><br>
+            → Action: Set lights to RED
+          </div><br>
+
+          <div>
+            Routine 3: When Voice Monkey triggers<br>
+            <span class="monkey-name">haunted_demo_reset</span>
+            <button class="copy-btn" onclick="copyToClipboard('haunted_demo_reset', event)">Copy</button><br>
+            → Action: Turn on lights (normal white)
+          </div>
+        </div>
+
+        <div class="step">
+          <span class="step-number">3</span>
+          <strong>Test Your Setup</strong><br>
+          Use the test buttons below to verify each routine works
+        </div>
+      </div>
+
+      <div class="test-section">
+        <h3>Test Voice Monkey Triggers</h3>
+        <button class="test-btn" onclick="testVoiceMonkey('blackout')">Test Blackout</button>
+        <button class="test-btn" onclick="testVoiceMonkey('flash')">Test Flash Red</button>
+        <button class="test-btn" onclick="testVoiceMonkey('reset')">Test Reset</button>
+        <div style="margin-top: 10px;">
+          Status: <span id="vm-status">Not tested</span>
+          <span class="status-indicator" id="vm-indicator"></span>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin-top: 20px;">
+        <button id="vm-ready" onclick="markVoiceMonkeyReady()" style="background: #27ae60;">
+          ✓ I've Created All Routines
+        </button>
+      </div>
+    </div>
+
+    <!-- Light Control Section (Original) -->
     <div class="light-controls">
-      <h3>Smart Light Control</h3>
+      <h3>Direct Light Control (Alternative)</h3>
       <button id="btnSetupLights">Setup Lights</button>
       <button id="btnTestLights">Test Lights</button>
       <div id="light-status" style="margin: 10px 0; color: #888;">
@@ -114,6 +309,133 @@
     <div id="log"></div>
 
     <script>
+      // Voice Monkey configuration
+      let voiceMonkeyReady = false;
+      let setupStartTime = null;
+
+      // Copy to clipboard function
+      function copyToClipboard(text, event) {
+        navigator.clipboard.writeText(text).then(() => {
+          const btn = event.target;
+          const originalText = btn.textContent;
+          btn.textContent = 'Copied!';
+          btn.classList.add('copied');
+          setTimeout(() => {
+            btn.textContent = originalText;
+            btn.classList.remove('copied');
+          }, 2000);
+        });
+      }
+
+      // Test Voice Monkey triggers
+      async function testVoiceMonkey(effect) {
+        const statusEl = document.getElementById('vm-status');
+        const indicatorEl = document.getElementById('vm-indicator');
+        
+        statusEl.textContent = `Testing ${effect}...`;
+        indicatorEl.classList.remove('ready');
+        
+        try {
+          const response = await fetch('/api/voicemonkey/trigger', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ 
+              effect: effect,
+              monkey: `haunted_demo_${effect}`
+            })
+          });
+          
+          const data = await response.json();
+          
+          if (data.success) {
+            statusEl.textContent = `${effect} triggered successfully!`;
+            statusEl.style.color = '#2ecc71';
+            indicatorEl.classList.add('ready');
+          } else {
+            statusEl.textContent = `Failed to trigger ${effect}`;
+            statusEl.style.color = '#e74c3c';
+          }
+        } catch (error) {
+          statusEl.textContent = `Error: ${error.message}`;
+          statusEl.style.color = '#e74c3c';
+        }
+      }
+
+      // Mark Voice Monkey as ready
+      function markVoiceMonkeyReady() {
+        voiceMonkeyReady = true;
+        const btn = document.getElementById('vm-ready');
+        btn.textContent = '✓ Voice Monkey Ready!';
+        btn.style.background = '#27ae60';
+        btn.disabled = true;
+        
+        // Store in session
+        sessionStorage.setItem('voiceMonkeyReady', 'true');
+        
+        // Stop timer if running
+        if (window.setupTimerInterval) {
+          clearInterval(window.setupTimerInterval);
+          document.getElementById('setup-timer').style.display = 'none';
+        }
+        
+        // Update status
+        const statusEl = document.getElementById('vm-status');
+        statusEl.textContent = 'Ready for film!';
+        statusEl.style.color = '#2ecc71';
+        document.getElementById('vm-indicator').classList.add('ready');
+      }
+
+      // Start setup timer
+      function startSetupTimer() {
+        setupStartTime = Date.now();
+        const timerEl = document.getElementById('setup-timer');
+        const timerValue = document.getElementById('timer-value');
+        
+        timerEl.style.display = 'block';
+        
+        window.setupTimerInterval = setInterval(() => {
+          const elapsed = Math.floor((Date.now() - setupStartTime) / 1000);
+          const remaining = Math.max(0, 60 - elapsed);
+          timerValue.textContent = remaining;
+          
+          if (remaining === 0) {
+            clearInterval(window.setupTimerInterval);
+            timerValue.textContent = '✓';
+            timerValue.style.color = '#2ecc71';
+          }
+        }, 1000);
+      }
+
+      // Modified fireEffect to include Voice Monkey
+      async function fireEffectWithVoiceMonkey(effect, extraPayload) {
+        // If Voice Monkey is ready, use it
+        if (voiceMonkeyReady || sessionStorage.getItem('voiceMonkeyReady') === 'true') {
+          try {
+            const response = await fetch('/api/voicemonkey/trigger', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ 
+                effect: effect,
+                monkey: `haunted_demo_${effect === 'flash-red' ? 'flash' : effect}`
+              })
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+              console.log('Triggered via Voice Monkey:', effect);
+              return true;
+            }
+          } catch (error) {
+            console.error('Voice Monkey trigger failed:', error);
+          }
+        }
+        
+        // Fallback to original fireEffect
+        return fireEffect(effect, extraPayload);
+      }
+
       // Define the setupLights function first
       let lightsConfigured = false;
       
@@ -152,11 +474,18 @@
       }
       
       function testLights() {
-        fireEffect('blackout', {origin: 'manual_test'});
+        fireEffectWithVoiceMonkey('blackout', {origin: 'manual_test'});
       }
       
-      // Add event listeners when the DOM is fully loaded
+      // Check if Voice Monkey was previously set up
       document.addEventListener('DOMContentLoaded', function() {
+        if (sessionStorage.getItem('voiceMonkeyReady') === 'true') {
+          markVoiceMonkeyReady();
+        } else {
+          // Start the setup timer when page loads
+          startSetupTimer();
+        }
+        
         // Setup lights button
         const btnSetupLights = document.getElementById('btnSetupLights');
         if (btnSetupLights) {
@@ -169,11 +498,11 @@
           btnTestLights.addEventListener('click', testLights);
         }
         
-        // Test all systems button
+        // Test all systems button - now uses Voice Monkey if available
         const btnBlackoutDirect = document.getElementById('btnBlackoutDirect');
         if (btnBlackoutDirect) {
           btnBlackoutDirect.addEventListener('click', function() {
-            fireEffect('blackout', {origin: 'manual_test'});
+            fireEffectWithVoiceMonkey('blackout', {origin: 'manual_test'});
           });
         }
         
