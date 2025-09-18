@@ -50,7 +50,68 @@ app.use(session({
 }));
 app.use(express.static("public"));
 
-// ===================== LIGHT DISCOVERY & CONTROL =====================
+const VOICE_MONKEY_API = 'https://api.voicemonkey.io/v1/monkey';
+
+
+// ===================== LIGHT DISCOVERY & CONTROL ===================== Voice Monkey
+
+// Add this endpoint to create/verify your shared monkeys exist
+app.get('/api/setup-shared-monkeys', async (req, res) => {
+  try {
+    // These are YOUR monkeys that ALL users will trigger
+    const sharedMonkeys = [
+      { name: 'haunted_shared_blackout', text: 'Blackout trigger' },
+      { name: 'haunted_shared_flash', text: 'Flash red trigger' },
+      { name: 'haunted_shared_reset', text: 'Reset lights trigger' }
+    ];
+    
+    // Create them in your Voice Monkey account (one-time setup)
+    for (const monkey of sharedMonkeys) {
+      await axios.post(`${VOICE_MONKEY_API}/create`, {
+        access_token: process.env.VOICE_MONKEY_TOKEN,
+        device_name: monkey.name,
+        default_text: monkey.text
+      });
+    }
+    
+    res.json({ success: true, monkeys: sharedMonkeys });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+
+// Generate pre-filled Alexa routine links
+app.get('/api/generate-routine-links', (req, res) => {
+  const sessionId = req.sessionID;
+  
+  // Store that this user is using Voice Monkey
+  req.session.triggerMethod = 'voicemonkey';
+  
+  // Generate deeplinks that open Alexa app with routines pre-filled
+  const routines = {
+    blackout: {
+      name: 'Haunted Blackout',
+      url: `alexa://routines/create?trigger=${encodeURIComponent('When Voice Monkey speaks')}&device=${encodeURIComponent('haunted_shared_blackout')}&action=${encodeURIComponent('Turn off all lights')}`,
+      fallbackUrl: 'https://alexa.amazon.com/spa/index.html#routines/add'
+    },
+    flash: {
+      name: 'Haunted Flash',
+      url: `alexa://routines/create?trigger=${encodeURIComponent('When Voice Monkey speaks')}&device=${encodeURIComponent('haunted_shared_flash')}&action=${encodeURIComponent('Set lights to red')}`,
+      fallbackUrl: 'https://alexa.amazon.com/spa/index.html#routines/add'
+    },
+    reset: {
+      name: 'Haunted Reset',
+      url: `alexa://routines/create?trigger=${encodeURIComponent('When Voice Monkey speaks')}&device=${encodeURIComponent('haunted_shared_reset')}&action=${encodeURIComponent('Turn on lights')}`,
+      fallbackUrl: 'https://alexa.amazon.com/spa/index.html#routines/add'
+    }
+  };
+  
+  res.json({
+    routines,
+    instructions: 'Click each link to create routine in Alexa app'
+  });
+});
 
 // ===================== LIGHT DISCOVERY & CONTROL =====================
 // Replace everything from this line until "EXISTING ALEXA CODE (UNCHANGED)"
@@ -532,6 +593,33 @@ app.post('/api/trigger-direct', async (req, res) => {
         success: false, 
         message: `Unknown effect: ${effect}` 
       });
+    }
+
+       // Voice Monkey mapping
+    const effectToMonkey = {
+      'blackout': 'haunted_shared_blackout',
+      'flash-red': 'haunted_shared_flash',
+      'reset': 'haunted_shared_reset'
+    };
+    
+    const results = [];
+    
+    // Try Voice Monkey if user has set it up
+    if (req.session.triggerMethod === 'voicemonkey') {
+      try {
+        const monkeyDevice = effectToMonkey[effect];
+        const voiceMonkeyResponse = await axios.post(
+          'https://api.voicemonkey.io/v1/monkey/trigger',
+          {
+            access_token: process.env.VOICE_MONKEY_TOKEN,
+            device: monkeyDevice,
+            text: `Triggering ${effect} effect`
+          }
+        );
+        results.push({ method: 'voicemonkey', success: true });
+      } catch (error) {
+        console.error('Voice Monkey trigger failed:', error);
+      }
     }
 
     // Trigger both systems in parallel
