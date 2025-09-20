@@ -1201,6 +1201,34 @@ app.get("/watch", (req, res) => {
   });
 });
 
+// Add this temporary endpoint to test your lights right now
+app.post('/api/test-ifttt-lights', async (req, res) => {
+  const { effect } = req.body;
+  
+  // Get your IFTTT webhook key from https://ifttt.com/maker_webhooks
+  const IFTTT_WEBHOOK_KEY = 'bdcBvFR0muTPnCVqQKDlqY'; // Replace with your actual key
+  
+  try {
+    const response = await fetch(`https://maker.ifttt.com/trigger/haunted_${effect}/with/key/${IFTTT_WEBHOOK_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        value1: effect,
+        value2: 'test_trigger',
+        value3: new Date().toISOString()
+      })
+    });
+    
+    if (response.ok) {
+      res.json({ success: true, effect: effect, message: 'IFTTT webhook triggered' });
+    } else {
+      throw new Error('IFTTT webhook failed');
+    }
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // ===================== SERVER STARTUP =====================
 
 const PORT = process.env.PORT || 3000;
