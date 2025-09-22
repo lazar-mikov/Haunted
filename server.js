@@ -1583,42 +1583,58 @@ app.post("/api/kill", (req, res) => {
 
   // === Trigger endpoint the tests are checking ===
   app.post("/ifttt/v1/triggers/effect_requested", (req, res) => {
-    // Auth via Bearer token
-    const auth  = req.headers.authorization ?? "";
-    const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-    const t = token && tokens.get(token);
-    if (!t) return res.status(401).json({ errors: [{ message: "invalid_token" }] });
+  // ADD THIS LOGGING
+  console.log("=== TRIGGER ENDPOINT CALLED ===");
+  console.log("Headers:", req.headers);
+  console.log("Authorization:", req.headers.authorization);
+  console.log("Body:", req.body);
+  console.log("================================");
 
-    // Accept either nested or flat
-    const effect =
-      req.body?.triggerFields?.effect ??
-      req.body?.effect ??
-      "";
+  // Auth via Bearer token OR Service Key
+  const auth = req.headers.authorization ?? "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  const t = token && tokens.get(token);
+  
+  const svcKey = req.get("IFTTT-Service-Key") || req.get("ifttt-service-key");
+  
+  // ALLOW EITHER TOKEN OR SERVICE KEY
+  if (!t && (!svcKey || svcKey !== process.env.IFTTT_SERVICE_KEY)) {
+    console.log("AUTH FAILED - Token:", token?.substring(0, 8), "ServiceKey:", svcKey?.substring(0, 8));
+    return res.status(401).json({ errors: [{ message: "invalid_token_or_service_key" }] });
+  }
 
-    const allowed = new Set(["blackout", "flash_red", "plug_on", "reset"]);
-    if (!allowed.has(effect)) {
-      return res.status(400).json({ errors: [{ message: "Invalid 'effect' trigger field" }] });
-    }
+  console.log("AUTH SUCCESS - Using:", t ? "Bearer Token" : "Service Key");
 
-    // Optional limit (default 50, clamp 0..50)
-    let limit = parseInt(req.body?.limit, 10);
-    if (isNaN(limit)) limit = 50;
-    if (limit < 0) limit = 0;
-    if (limit > 50) limit = 50;
+  // Accept either nested or flat
+  const effect =
+    req.body?.triggerFields?.effect ??
+    req.body?.effect ??
+    "";
 
-    const now = Math.floor(Date.now() / 1000);
-    const data = Array.from({ length: limit }, (_, i) => {
-      const ts = now - i * 60; // 1 minute apart, newest first
-      return {
-        title: `Effect requested: ${effect}`,
-        effect,
-        created_at: new Date(ts * 1000).toISOString(), // REQUIRED ISO8601
-        meta: { id: `effect-${effect}-${ts}`, timestamp: ts } // REQUIRED meta fields
-      };
-    });
+  const allowed = new Set(["blackout", "flash_red", "plug_on", "reset"]);
+  if (!allowed.has(effect)) {
+    return res.status(400).json({ errors: [{ message: "Invalid 'effect' trigger field" }] });
+  }
 
-    return res.status(200).json({ data });
+  // Optional limit (default 50, clamp 0..50)
+  let limit = parseInt(req.body?.limit, 10);
+  if (isNaN(limit)) limit = 50;
+  if (limit < 0) limit = 0;
+  if (limit > 50) limit = 50;
+
+  const now = Math.floor(Date.now() / 1000);
+  const data = Array.from({ length: limit }, (_, i) => {
+    const ts = now - i * 60; // 1 minute apart, newest first
+    return {
+      title: `Effect requested: ${effect}`,
+      effect,
+      created_at: new Date(ts * 1000).toISOString(), // REQUIRED ISO8601
+      meta: { id: `effect-${effect}-${ts}`, timestamp: ts } // REQUIRED meta fields
+    };
   });
+
+  return res.status(200).json({ data });
+});
 
   // 3) Trigger: new_thing_created — returns recent items with required fields (kept)
   app.post("/ifttt/v1/triggers/new_thing_created", (req, res) => {
@@ -1783,6 +1799,29 @@ app.post("/api/kill", (req, res) => {
     res.type("text").send(`code=${req.query.code || ""}\nstate=${req.query.state || ""}`);
   });
 })();
+
+
+//===================Debug IFTTT =====================
+
+// Add this to your server
+// Add this debug endpoint
+app.get("/debug/tokens", (req, res) => {
+  const allTokens = [];
+  for (const [token, info] of tokens.entries()) {
+    allTokens.push({
+      token: token.substring(0, 8) + "...", // Don't expose full token
+      userId: info.userId,
+      createdAt: new Date(info.createdAt).toISOString()
+    });
+  }
+  res.json({
+    totalTokens: tokens.size,
+    tokens: allTokens,
+    serviceKey: process.env.IFTTT_SERVICE_KEY ? "SET" : "NOT SET"
+  });
+});
+
+
 
 // ===================== SERVER STARTUP =====================
 
