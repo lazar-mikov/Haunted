@@ -1709,7 +1709,7 @@ app.post("/api/kill", (req, res) => {
     return res.status(200).json(body);
   });
 
- app.post("/ifttt/v1/triggers/effect_requested2", (req, res) => {
+app.post("/ifttt/v1/triggers/effect_requested2", (req, res) => {
   console.log("=== TRIGGER ENDPOINT 2 CALLED ===");
   console.log("Headers:", req.headers);
   console.log("Authorization:", req.headers.authorization);
@@ -1723,7 +1723,6 @@ app.post("/api/kill", (req, res) => {
   
   const svcKey = req.get("IFTTT-Service-Key") || req.get("ifttt-service-key");
   
-  // ALLOW EITHER TOKEN OR SERVICE KEY
   if (!t && (!svcKey || svcKey !== process.env.IFTTT_SERVICE_KEY)) {
     console.log("AUTH FAILED - Token:", token?.substring(0, 8), "ServiceKey:", svcKey?.substring(0, 8));
     return res.status(401).json({ errors: [{ message: "invalid_token_or_service_key" }] });
@@ -1731,17 +1730,8 @@ app.post("/api/kill", (req, res) => {
 
   console.log("AUTH SUCCESS - Using:", t ? "Bearer Token" : "Service Key");
 
-  // Accept either nested or flat
-  const effect =
-    req.body?.triggerFields?.effect ??
-    req.body?.effect ??
-    "blackon2"; // Default for testing
-
-  // REMOVE VALIDATION FOR IFTTT TESTS - be more permissive
-   const allowed = new Set(["blackout2", "blackon2"]);
-   if (!allowed.has(effect)) {
-     return res.status(400).json({ errors: [{ message: "Invalid 'effect' trigger field" }] });
-   }
+  // Handle missing triggerFields gracefully
+  const effect = req.body?.triggerFields?.effect || "blackon2"; // Default when missing
 
   // Optional limit (default 50, clamp 0..50)
   let limit = parseInt(req.body?.limit, 10);
@@ -1762,7 +1752,6 @@ app.post("/api/kill", (req, res) => {
 
   return res.status(200).json({ data });
 });
-
   // 3c) Action: create_new_thing — accepts fields, optional metadata (kept)
   app.post("/ifttt/v1/actions/create_new_thing", (req, res) => {
     const auth = req.headers.authorization ?? "";
