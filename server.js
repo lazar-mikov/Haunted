@@ -1787,6 +1787,19 @@ app.post("/api/kill", (req, res) => {
   });
 })();
 
+// Visit this URL again to restore the token
+app.get("/dev/add-ifttt-token", (req, res) => {
+  const iftttToken = "onsb6nyv9omfc035on";
+  tokens.set(iftttToken, { 
+    userId: "ifttt-connect-user", 
+    createdAt: Date.now() 
+  });
+  
+  res.json({
+    message: "IFTTT token re-added",
+    totalTokens: tokens.size
+  });
+});
 
 
 
