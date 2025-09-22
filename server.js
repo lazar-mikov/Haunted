@@ -1709,7 +1709,7 @@ app.post("/api/kill", (req, res) => {
     return res.status(200).json(body);
   });
 
-app.post("/ifttt/v1/triggers/effect_requested2", (req, res) => {
+  app.post("/ifttt/v1/triggers/effect_requested2", (req, res) => {
   console.log("=== TRIGGER ENDPOINT 2 CALLED ===");
   console.log("Headers:", req.headers);
   console.log("Authorization:", req.headers.authorization);
@@ -1730,19 +1730,19 @@ app.post("/ifttt/v1/triggers/effect_requested2", (req, res) => {
 
   console.log("AUTH SUCCESS - Using:", t ? "Bearer Token" : "Service Key");
 
-  // Accept either nested or flat - NO VALIDATION FOR NOW
+  // Accept either nested or flat
   const effect =
     req.body?.triggerFields?.effect ??
     req.body?.effect ??
-    "blackout2"; // Default to valid effect
+    "";
 
-  console.log("Effect extracted:", effect);
+  // Handle missing trigger fields gracefully - use default for empty effect
+  const finalEffect = effect || "blackout2"; // Default when missing/empty
 
-  // REMOVE VALIDATION TEMPORARILY
-  // const allowed = new Set(["blackout2", "blackon2", "plug_on", "reset"]);
-  // if (!allowed.has(effect)) {
-  //   return res.status(400).json({ errors: [{ message: "Invalid 'effect' trigger field" }] });
-  // }
+  const allowed = new Set(["blackout2", "blackon2", "plug_on", "reset"]);
+  if (!allowed.has(finalEffect)) {
+    return res.status(400).json({ errors: [{ message: "Invalid 'effect' trigger field" }] });
+  }
 
   let limit = parseInt(req.body?.limit, 10);
   if (isNaN(limit)) limit = 50;
@@ -1753,15 +1753,16 @@ app.post("/ifttt/v1/triggers/effect_requested2", (req, res) => {
   const data = Array.from({ length: limit }, (_, i) => {
     const ts = now - i * 60;
     return {
-      title: `Effect requested: ${effect}`,
-      effect,
+      title: `Effect requested: ${finalEffect}`,
+      effect: finalEffect,
       created_at: new Date(ts * 1000).toISOString(),
-      meta: { id: `effect-${effect}-${ts}`, timestamp: ts }
+      meta: { id: `effect-${finalEffect}-${ts}`, timestamp: ts }
     };
   });
 
   return res.status(200).json({ data });
 });
+
   // 3c) Action: create_new_thing — accepts fields, optional metadata (kept)
   app.post("/ifttt/v1/actions/create_new_thing", (req, res) => {
     const auth = req.headers.authorization ?? "";
