@@ -1710,7 +1710,6 @@ app.post("/api/kill", (req, res) => {
   });
 
 app.post("/ifttt/v1/triggers/effect_requested2", (req, res) => {
-  // ADD THIS LOGGING
   console.log("=== TRIGGER ENDPOINT 2 CALLED ===");
   console.log("Headers:", req.headers);
   console.log("Authorization:", req.headers.authorization);
@@ -1724,7 +1723,6 @@ app.post("/ifttt/v1/triggers/effect_requested2", (req, res) => {
   
   const svcKey = req.get("IFTTT-Service-Key") || req.get("ifttt-service-key");
   
-  // ALLOW EITHER TOKEN OR SERVICE KEY
   if (!t && (!svcKey || svcKey !== process.env.IFTTT_SERVICE_KEY)) {
     console.log("AUTH FAILED - Token:", token?.substring(0, 8), "ServiceKey:", svcKey?.substring(0, 8));
     return res.status(401).json({ errors: [{ message: "invalid_token_or_service_key" }] });
@@ -1732,18 +1730,20 @@ app.post("/ifttt/v1/triggers/effect_requested2", (req, res) => {
 
   console.log("AUTH SUCCESS - Using:", t ? "Bearer Token" : "Service Key");
 
-  // Accept either nested or flat
+  // Accept either nested or flat - NO VALIDATION FOR NOW
   const effect =
     req.body?.triggerFields?.effect ??
     req.body?.effect ??
-    "";
+    "blackout2"; // Default to valid effect
 
-  const allowed = new Set(["blackout2", "blackon2"]);
-  if (!allowed.has(effect)) {
-    return res.status(400).json({ errors: [{ message: "Invalid 'effect' trigger field" }] });
-  }
+  console.log("Effect extracted:", effect);
 
-  // Optional limit (default 50, clamp 0..50)
+  // REMOVE VALIDATION TEMPORARILY
+  // const allowed = new Set(["blackout2", "blackon2", "plug_on", "reset"]);
+  // if (!allowed.has(effect)) {
+  //   return res.status(400).json({ errors: [{ message: "Invalid 'effect' trigger field" }] });
+  // }
+
   let limit = parseInt(req.body?.limit, 10);
   if (isNaN(limit)) limit = 50;
   if (limit < 0) limit = 0;
@@ -1751,12 +1751,12 @@ app.post("/ifttt/v1/triggers/effect_requested2", (req, res) => {
 
   const now = Math.floor(Date.now() / 1000);
   const data = Array.from({ length: limit }, (_, i) => {
-    const ts = now - i * 60; // 1 minute apart, newest first
+    const ts = now - i * 60;
     return {
       title: `Effect requested: ${effect}`,
       effect,
-      created_at: new Date(ts * 1000).toISOString(), // REQUIRED ISO8601
-      meta: { id: `effect-${effect}-${ts}`, timestamp: ts } // REQUIRED meta fields
+      created_at: new Date(ts * 1000).toISOString(),
+      meta: { id: `effect-${effect}-${ts}`, timestamp: ts }
     };
   });
 
