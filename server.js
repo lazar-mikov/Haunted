@@ -1424,11 +1424,28 @@ async function handleTrigger(req, res, body) {
       return res.status(400).json({ ok: false, error: "invalid effect" });
     }
 
-    console.log("Effect triggered:", effect);
-    
-    // Since your IFTTT connection works, just return success
-    // The connection will handle the rest automatically
-    return res.json({ ok: true, via: "ifttt-trigger", effect: effect });
+    // Actually trigger your IFTTT service endpoint
+    try {
+      await axios.post(
+        `https://haunted-production.up.railway.app/ifttt/v1/triggers/effect_requested`,
+        { 
+          triggerFields: { effect },
+          user: { timezone: "Europe/Berlin" },
+          limit: 1
+        },
+        {
+          headers: {
+            "IFTTT-Service-Key": process.env.IFTTT_SERVICE_KEY,
+            "Content-Type": "application/json"
+          },
+          timeout: 5000
+        }
+      );
+      return res.json({ ok: true, via: "ifttt-service-trigger" });
+    } catch (e) {
+      console.error("IFTTT trigger error:", e?.response?.data || e.message);
+      return res.status(500).json({ ok: false, error: "IFTTT trigger failed" });
+    }
     
   } catch (e) {
     console.error("Trigger error:", e.message);
