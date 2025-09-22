@@ -1738,10 +1738,10 @@ app.post("/api/kill", (req, res) => {
     "blackon2"; // Default for testing
 
   // REMOVE VALIDATION FOR IFTTT TESTS - be more permissive
-  // const allowed = new Set(["blackout", "blackon", "plug_on", "reset"]);
-  // if (!allowed.has(effect)) {
-  //   return res.status(400).json({ errors: [{ message: "Invalid 'effect' trigger field" }] });
-  // }
+   const allowed = new Set(["blackout2", "blackon2"]);
+   if (!allowed.has(effect)) {
+     return res.status(400).json({ errors: [{ message: "Invalid 'effect' trigger field" }] });
+   }
 
   // Optional limit (default 50, clamp 0..50)
   let limit = parseInt(req.body?.limit, 10);
