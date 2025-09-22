@@ -1525,7 +1525,8 @@ app.post("/api/kill", (req, res) => {
           },
           triggers: {
             // Trigger ID must match your IFTTT Trigger exactly
-            effect_requested: { effect: "blackout" }
+            effect_requested: { effect: "blackout" },
+            effect_requested2: { effect: "blackon2" }
           }
         }
       }
@@ -1708,6 +1709,60 @@ app.post("/api/kill", (req, res) => {
 
     return res.status(200).json(body);
   });
+
+  app.post("/ifttt/v1/triggers/effect_requested2", (req, res) => {
+  // ADD THIS LOGGING
+  console.log("=== TRIGGER ENDPOINT 2 CALLED ===");
+  console.log("Headers:", req.headers);
+  console.log("Authorization:", req.headers.authorization);
+  console.log("Body:", req.body);
+  console.log("================================");
+
+  // Auth via Bearer token OR Service Key
+  const auth = req.headers.authorization ?? "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  const t = token && tokens.get(token);
+  
+  const svcKey = req.get("IFTTT-Service-Key") || req.get("ifttt-service-key");
+  
+  // ALLOW EITHER TOKEN OR SERVICE KEY
+  if (!t && (!svcKey || svcKey !== process.env.IFTTT_SERVICE_KEY)) {
+    console.log("AUTH FAILED - Token:", token?.substring(0, 8), "ServiceKey:", svcKey?.substring(0, 8));
+    return res.status(401).json({ errors: [{ message: "invalid_token_or_service_key" }] });
+  }
+
+  console.log("AUTH SUCCESS - Using:", t ? "Bearer Token" : "Service Key");
+
+  // Accept either nested or flat
+  const effect =
+    req.body?.triggerFields?.effect ??
+    req.body?.effect ??
+    "";
+
+  const allowed = new Set(["blackout", "blackon", "plug_on", "reset"]);
+  if (!allowed.has(effect)) {
+    return res.status(400).json({ errors: [{ message: "Invalid 'effect' trigger field" }] });
+  }
+
+  // Optional limit (default 50, clamp 0..50)
+  let limit = parseInt(req.body?.limit, 10);
+  if (isNaN(limit)) limit = 50;
+  if (limit < 0) limit = 0;
+  if (limit > 50) limit = 50;
+
+  const now = Math.floor(Date.now() / 1000);
+  const data = Array.from({ length: limit }, (_, i) => {
+    const ts = now - i * 60; // 1 minute apart, newest first
+    return {
+      title: `Effect requested 2: ${effect}`,
+      effect,
+      created_at: new Date(ts * 1000).toISOString(), // REQUIRED ISO8601
+      meta: { id: `effect2-${effect}-${ts}`, timestamp: ts } // REQUIRED meta fields
+    };
+  });
+
+  return res.status(200).json({ data });
+});
 
   // 3c) Action: create_new_thing — accepts fields, optional metadata (kept)
   app.post("/ifttt/v1/actions/create_new_thing", (req, res) => {
