@@ -1416,7 +1416,7 @@ app.post("/api/trigger", async (req, res) => {
 
 async function handleTrigger(req, res, body) {
   // TEMPORARY: Force webhooks until IFTTT service is live
-  req.session.ifttt = null;
+ // req.session.ifttt = null;
   
   try {
     /** [CHANGED] allow 'effect' or 'event' */
@@ -1447,6 +1447,11 @@ async function handleTrigger(req, res, body) {
         return res.status(502).json({ ok: false, via: "ifttt-connect", error: "Connect action failed" });
       }
     }
+
+    app.get("/dev/set-token", (req, res) => {
+  req.session.ifttt = { access_token: "test-token-for-demo" };
+  res.send("Token set! Now test your effects.");
+});
 
     // OPTION B: Webhooks fallback (demo) - THIS WILL RUN NOW
     if (!req.session.makerKey) {
