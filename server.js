@@ -1801,6 +1801,21 @@ app.post("/api/kill", (req, res) => {
 })();
 
 
+// Temporary fix - add the IFTTT token
+app.get("/dev/add-ifttt-token", (req, res) => {
+  const iftttToken = "onsb6nyv9omfc035on";
+  tokens.set(iftttToken, { 
+    userId: "ifttt-connect-user", 
+    createdAt: Date.now() 
+  });
+  
+  res.json({
+    message: "IFTTT token added",
+    token: iftttToken.substring(0, 8) + "...",
+    totalTokens: tokens.size
+  });
+});
+
 //===================Debug IFTTT =====================
 
 // Add this to your server
