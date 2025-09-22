@@ -1419,31 +1419,50 @@ async function handleTrigger(req, res, body) {
     const effect = (body.effect || body.event || "").trim();
     console.log("=== HANDLING TRIGGER ===");
     console.log("Effect:", effect);
+    console.log("Service Key:", process.env.IFTTT_SERVICE_KEY ? "SET" : "NOT SET");
     
     if (!effect) return res.status(400).json({ ok: false, error: "missing effect" });
 
-    // Call Tapo actions directly (same as your working terminal commands)
     if (effect === "blackout") {
       console.log("Calling blackout API...");
-      await axios.post(
+      const response = await axios.post(
         "https://connect.ifttt.com/v2/connections/XXjNn4cp/actions/tplink_tapo.action_turn_off/run?user_id=demo-user-001",
-        {},
-        { headers: { "IFTTT-Service-Key": process.env.IFTTT_SERVICE_KEY }}
+        {}, // Empty body like PowerShell
+        { 
+          headers: { 
+            "IFTTT-Service-Key": process.env.IFTTT_SERVICE_KEY,
+            "Content-Type": "application/json; charset=utf-8"  // Exact PowerShell header
+          },
+          timeout: 5000
+        }
       );
+      console.log("Blackout response:", response.status, response.data);
+      
     } else if (effect === "flash_red") {
       console.log("Calling flash_red API...");
-      await axios.post(
+      const response = await axios.post(
         "https://connect.ifttt.com/v2/connections/XXjNn4cp/actions/tplink_tapo.action_turn_on/run?user_id=demo-user-001",
         {},
-        { headers: { "IFTTT-Service-Key": process.env.IFTTT_SERVICE_KEY }}
+        { 
+          headers: { 
+            "IFTTT-Service-Key": process.env.IFTTT_SERVICE_KEY,
+            "Content-Type": "application/json; charset=utf-8"
+          },
+          timeout: 5000
+        }
       );
+      console.log("Flash_red response:", response.status, response.data);
     }
     
     return res.json({ ok: true, via: "direct-tapo-api", effect: effect });
     
   } catch (e) {
-    console.error("Direct API error:", e.message);
-    return res.status(500).json({ ok: false, error: e.message });
+    console.error("=== API ERROR ===");
+    console.error("Status:", e.response?.status);
+    console.error("Data:", e.response?.data);
+    console.error("Message:", e.message);
+    console.error("==================");
+    return res.status(500).json({ ok: false, error: e.response?.data || e.message });
   }
 }
 
