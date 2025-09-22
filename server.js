@@ -1500,39 +1500,37 @@ app.post("/api/kill", (req, res) => {
 
   // 1b) Test setup: create a test token and sample values
   app.post("/ifttt/v1/test/setup", (req, res) => {
-    const got =
-      req.get("IFTTT-Service-Key") ||
-      req.get("IFTTT-Channel-Key") ||
-      req.get("ifttt-service-key") ||
-      req.get("ifttt-channel-key");
+  const got =
+    req.get("IFTTT-Service-Key") ||
+    req.get("IFTTT-Channel-Key") ||
+    req.get("ifttt-service-key") ||
+    req.get("ifttt-channel-key");
 
-    if (!got || got !== process.env.IFTTT_SERVICE_KEY) {
-      return res.status(401).json({ errors: [{ message: "invalid channel key" }] });
-    }
+  if (!got || got !== process.env.IFTTT_SERVICE_KEY) {
+    return res.status(401).json({ errors: [{ message: "invalid channel key" }] });
+  }
 
-    // Make a test access token so /user/info and triggers can auth
-    const access_token = Math.random().toString(36).slice(2) + Date.now().toString(36);
-    tokens.set(access_token, { userId: "demo-user-001", createdAt: Date.now() });
+  const access_token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  tokens.set(access_token, { userId: "demo-user-001", createdAt: Date.now() });
 
-    // Provide samples for ACTIONS and TRIGGERS expected by your Service schema
-    return res.status(200).json({
-      data: {
-        accessToken: access_token,
-        samples: {
-          actions: {
-            // Action ID must match your IFTTT Action exactly
-            run_effect: { effect: "blackout" }
-          },
-          triggers: {
-           effect_requested: { effect: "blackout" },
-          effect_requested2: { effect: "blackout2" }
-          
-
+  return res.status(200).json({
+    data: {
+      accessToken: access_token,
+      samples: {
+        actions: {
+          run_effect: { effect: "blackout" }
+        },
+        triggers: {
+          effect_requested: { effect: "blackout" },
+          effect_requested2: { 
+            effect_requested2: "blackon",  // Add this nested property
+            effect: "blackout2" 
           }
         }
       }
-    });
+    }
   });
+});
 
   // 2) User info (Bearer token)
   app.get("/ifttt/v1/user/info", (req, res) => {
