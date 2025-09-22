@@ -1710,6 +1710,7 @@ app.post("/api/kill", (req, res) => {
   });
 
 app.post("/ifttt/v1/triggers/effect_requested2", (req, res) => {
+  // ADD THIS LOGGING
   console.log("=== TRIGGER ENDPOINT 2 CALLED ===");
   console.log("Headers:", req.headers);
   console.log("Authorization:", req.headers.authorization);
@@ -1723,6 +1724,7 @@ app.post("/ifttt/v1/triggers/effect_requested2", (req, res) => {
   
   const svcKey = req.get("IFTTT-Service-Key") || req.get("ifttt-service-key");
   
+  // ALLOW EITHER TOKEN OR SERVICE KEY
   if (!t && (!svcKey || svcKey !== process.env.IFTTT_SERVICE_KEY)) {
     console.log("AUTH FAILED - Token:", token?.substring(0, 8), "ServiceKey:", svcKey?.substring(0, 8));
     return res.status(401).json({ errors: [{ message: "invalid_token_or_service_key" }] });
@@ -1730,8 +1732,16 @@ app.post("/ifttt/v1/triggers/effect_requested2", (req, res) => {
 
   console.log("AUTH SUCCESS - Using:", t ? "Bearer Token" : "Service Key");
 
-  // Handle missing triggerFields gracefully
-  const effect = req.body?.triggerFields?.effect || "blackon2"; // Default when missing
+  // Accept either nested or flat
+  const effect =
+    req.body?.triggerFields?.effect ??
+    req.body?.effect ??
+    "";
+
+  const allowed = new Set(["blackout2", "blackon2"]);
+  if (!allowed.has(effect)) {
+    return res.status(400).json({ errors: [{ message: "Invalid 'effect' trigger field" }] });
+  }
 
   // Optional limit (default 50, clamp 0..50)
   let limit = parseInt(req.body?.limit, 10);
@@ -1741,12 +1751,12 @@ app.post("/ifttt/v1/triggers/effect_requested2", (req, res) => {
 
   const now = Math.floor(Date.now() / 1000);
   const data = Array.from({ length: limit }, (_, i) => {
-    const ts = now - i * 60;
+    const ts = now - i * 60; // 1 minute apart, newest first
     return {
-      title: `Effect requested 2: ${effect}`,
+      title: `Effect requested: ${effect}`,
       effect,
-      created_at: new Date(ts * 1000).toISOString(),
-      meta: { id: `effect2-${effect}-${ts}`, timestamp: ts }
+      created_at: new Date(ts * 1000).toISOString(), // REQUIRED ISO8601
+      meta: { id: `effect-${effect}-${ts}`, timestamp: ts } // REQUIRED meta fields
     };
   });
 
