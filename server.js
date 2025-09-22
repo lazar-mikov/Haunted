@@ -1417,39 +1417,33 @@ app.post("/api/trigger", async (req, res) => {
 async function handleTrigger(req, res, body) {
   try {
     const effect = (body.effect || body.event || "").trim();
+    console.log("=== HANDLING TRIGGER ===");
+    console.log("Effect:", effect);
+    
     if (!effect) return res.status(400).json({ ok: false, error: "missing effect" });
 
-    const allowed = new Set(["blackout", "flash_red", "plug_on", "reset"]);
-    if (!allowed.has(effect)) {
-      return res.status(400).json({ ok: false, error: "invalid effect" });
-    }
-
-    // Actually trigger your IFTTT service endpoint
-    try {
+    // Call Tapo actions directly (same as your working terminal commands)
+    if (effect === "blackout") {
+      console.log("Calling blackout API...");
       await axios.post(
-        `https://haunted-production.up.railway.app/ifttt/v1/triggers/effect_requested`,
-        { 
-          triggerFields: { effect },
-          user: { timezone: "Europe/Berlin" },
-          limit: 1
-        },
-        {
-          headers: {
-            "IFTTT-Service-Key": process.env.IFTTT_SERVICE_KEY,
-            "Content-Type": "application/json"
-          },
-          timeout: 5000
-        }
+        "https://connect.ifttt.com/v2/connections/XXjNn4cp/actions/tplink_tapo.action_turn_off/run?user_id=demo-user-001",
+        {},
+        { headers: { "IFTTT-Service-Key": process.env.IFTTT_SERVICE_KEY }}
       );
-      return res.json({ ok: true, via: "ifttt-service-trigger" });
-    } catch (e) {
-      console.error("IFTTT trigger error:", e?.response?.data || e.message);
-      return res.status(500).json({ ok: false, error: "IFTTT trigger failed" });
+    } else if (effect === "flash_red") {
+      console.log("Calling flash_red API...");
+      await axios.post(
+        "https://connect.ifttt.com/v2/connections/XXjNn4cp/actions/tplink_tapo.action_turn_on/run?user_id=demo-user-001",
+        {},
+        { headers: { "IFTTT-Service-Key": process.env.IFTTT_SERVICE_KEY }}
+      );
     }
     
+    return res.json({ ok: true, via: "direct-tapo-api", effect: effect });
+    
   } catch (e) {
-    console.error("Trigger error:", e.message);
-    return res.status(500).json({ ok: false, error: "Trigger failed" });
+    console.error("Direct API error:", e.message);
+    return res.status(500).json({ ok: false, error: e.message });
   }
 }
 
