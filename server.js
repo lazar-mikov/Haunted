@@ -1525,10 +1525,8 @@ app.post("/api/kill", (req, res) => {
           },
           triggers: {
            effect_requested: { effect: "blackout" },
-          effect_requested2: { 
-            effect_requested2: "",  // Nested structure IFTTT expects
-            effect: "blackon2"       // Your actual field
-          }
+          effect_requested2: { effect: "blackout2" }
+          
 
           }
         }
