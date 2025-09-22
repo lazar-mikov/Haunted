@@ -1525,8 +1525,13 @@ app.post("/api/kill", (req, res) => {
           },
           triggers: {
             // Trigger ID must match your IFTTT Trigger exactly
-            effect_requested: { effect: "blackout" },
-            effect_requested2: { effect: "blackon2" }
+                   "effect_requested": {
+          "effect": "blackout"
+        },
+        "effect_requested2": {
+          "effect": "blackon2"
+        }
+
           }
         }
       }
