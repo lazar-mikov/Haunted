@@ -1438,11 +1438,11 @@ async function handleTrigger(req, res, body) {
       );
       console.log("Blackout response:", response.status, response.data);
       
-    } else if (effect === "flash_red") {
-      console.log("Calling flash_red API...");
-      const response = await axios.post(
-        "https://connect.ifttt.com/v2/connections/XXjNn4cp/actions/tplink_tapo.action_turn_on/run?user_id=demo-user-001",
-        {},
+   } else if (effect === "blackon") {
+  console.log("Calling blackon API...");
+  const response = await axios.post(
+    "https://connect.ifttt.com/v2/connections/YOUR_NEW_CONNECTION_ID/actions/tplink_tapo.action_turn_on/run?user_id=demo-user-001",
+    {},
         { 
           headers: { 
             "IFTTT-Service-Key": process.env.IFTTT_SERVICE_KEY,
@@ -1451,7 +1451,7 @@ async function handleTrigger(req, res, body) {
           timeout: 5000
         }
       );
-      console.log("Flash_red response:", response.status, response.data);
+      console.log("blackon response:", response.status, response.data);
     }
     
     return res.json({ ok: true, via: "direct-tapo-api", effect: effect });
@@ -1570,10 +1570,10 @@ app.post("/api/kill", (req, res) => {
 
     // ---- Validate payload ----
     const effect = req.body?.actionFields?.effect ?? req.body?.effect;
-    const allowed = new Set(["blackout", "flash_red", "plug_on", "reset"]);
+    const allowed = new Set(["blackout", "blackon", "plug_on", "reset"]);
     if (!allowed.has(effect)) {
       return res.status(400).json({
-        errors: [{ message: "Invalid 'effect'. Use blackout, flash_red, plug_on, reset." }]
+        errors: [{ message: "Invalid 'effect'. Use blackout, blackon, plug_on, reset." }]
       });
     }
 
@@ -1611,7 +1611,7 @@ app.post("/api/kill", (req, res) => {
     req.body?.effect ??
     "";
 
-  const allowed = new Set(["blackout", "flash_red", "plug_on", "reset"]);
+  const allowed = new Set(["blackout", "blackon", "plug_on", "reset"]);
   if (!allowed.has(effect)) {
     return res.status(400).json({ errors: [{ message: "Invalid 'effect' trigger field" }] });
   }
