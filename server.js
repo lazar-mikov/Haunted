@@ -1430,7 +1430,7 @@ async function handleTrigger(req, res, body) {
     if (effect === "blackout") {
       console.log("Calling blackout API...");
       const response = await axios.post(
-        "https://connect.ifttt.com/v2/connections/QePY5yd6/actions/tplink_tapo.action_turn_off/run?user_id=demo-user-001",
+        "https://connect.ifttt.com/v2/connections/rSgFnTsV/actions/tplink_tapo.action_turn_off/run?user_id=demo-user-001",
         {},
         { headers: { "IFTTT-Service-Key": process.env.IFTTT_SERVICE_KEY, "Content-Type": "application/json; charset=utf-8" }}
       );
@@ -1439,7 +1439,7 @@ async function handleTrigger(req, res, body) {
     } else if (effect === "blackon") {
       console.log("Calling blackon API...");
       const response = await axios.post(
-        "https://connect.ifttt.com/v2/connections/QePY5yd6/actions/tplink_tapo.action_turn_on/run?user_id=demo-user-001",
+        "https://connect.ifttt.com/v2/connections/rSgFnTsV/actions/tplink_tapo.action_turn_on/run?user_id=demo-user-001",
         {},
         { headers: { "IFTTT-Service-Key": process.env.IFTTT_SERVICE_KEY, "Content-Type": "application/json; charset=utf-8" }}
       );
