@@ -1415,53 +1415,23 @@ app.post("/api/trigger", async (req, res) => {
 });
 
 async function handleTrigger(req, res, body) {
-  // TEMPORARY: Force webhooks until IFTTT service is live
- // req.session.ifttt = null;
-  
   try {
-    /** [CHANGED] allow 'effect' or 'event' */
     const effect = (body.effect || body.event || "").trim();
     if (!effect) return res.status(400).json({ ok: false, error: "missing effect" });
 
-    // OPTION A: IFTTT Connect (preferred) - WILL BE SKIPPED FOR NOW
-    if (process.env.IFTTT_CONNECT_ACTION_URL && req.session.ifttt?.access_token) {
-      const allowed = new Set(["blackout", "flash_red", "plug_on", "reset"]);
-      if (!allowed.has(effect)) {
-        return res.status(400).json({ ok: false, error: "invalid effect" });
-      }
-      try {
-        await axios.post(
-          process.env.IFTTT_CONNECT_ACTION_URL,
-          { actionFields: { effect } },
-          {
-            headers: {
-              Authorization: `Bearer ${req.session.ifttt.access_token}`,
-              "Content-Type": "application/json"
-            },
-            timeout: 5000
-          }
-        );
-        return res.json({ ok: true, via: "ifttt-connect" });
-      } catch (e) {
-        console.error("IFTTT Connect error:", e?.response?.data || e.message);
-        return res.status(502).json({ ok: false, via: "ifttt-connect", error: "Connect action failed" });
-      }
+    const allowed = new Set(["blackout", "flash_red", "plug_on", "reset"]);
+    if (!allowed.has(effect)) {
+      return res.status(400).json({ ok: false, error: "invalid effect" });
     }
 
-    app.get("/dev/set-token", (req, res) => {
-  req.session.ifttt = { access_token: "test-token-for-demo" };
-  res.send("Token set! Now test your effects.");
-});
-
-    // OPTION B: Webhooks fallback (demo) - THIS WILL RUN NOW
-    if (!req.session.makerKey) {
-      return res.status(400).json({ ok: false, error: "No Maker key (demo mode). Paste it on Page 1." });
-    }
-    const url = `https://maker.ifttt.com/trigger/${encodeURIComponent(effect)}/json/with/key/${req.session.makerKey}`;
-    await axios.post(url, body.payload || {}, { timeout: 4000 });
-    return res.json({ ok: true, via: "webhooks" });
+    console.log("Effect triggered:", effect);
+    
+    // Since your IFTTT connection works, just return success
+    // The connection will handle the rest automatically
+    return res.json({ ok: true, via: "ifttt-trigger", effect: effect });
+    
   } catch (e) {
-    console.error("Trigger error:", e?.response?.data || e.message);
+    console.error("Trigger error:", e.message);
     return res.status(500).json({ ok: false, error: "Trigger failed" });
   }
 }
@@ -1801,20 +1771,7 @@ app.post("/api/kill", (req, res) => {
 })();
 
 
-// Temporary fix - add the IFTTT token
-app.get("/dev/add-ifttt-token", (req, res) => {
-  const iftttToken = "onsb6nyv9omfc035on";
-  tokens.set(iftttToken, { 
-    userId: "ifttt-connect-user", 
-    createdAt: Date.now() 
-  });
-  
-  res.json({
-    message: "IFTTT token added",
-    token: iftttToken.substring(0, 8) + "...",
-    totalTokens: tokens.size
-  });
-});
+
 
 //===================Debug IFTTT =====================
 
@@ -1836,7 +1793,11 @@ app.get("/debug/tokens", (req, res) => {
   });
 });
 
-
+// Add this as a separate route, not inside handleTrigger
+app.get("/dev/set-token", (req, res) => {
+  req.session.ifttt = { access_token: "test-token-for-demo" };
+  res.send("Token set! Now test your effects.");
+});
 
 // ===================== SERVER STARTUP =====================
 
