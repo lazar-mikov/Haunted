@@ -1601,7 +1601,7 @@ app.post("/api/kill", (req, res) => {
     req.body?.effect ??
     "";
 
-  const allowed = new Set(["blackout", "blackon", "plug_on", "reset"]);
+  const allowed = new Set(["blackout", "blackon", "blackout2", "blackon2", "plug_on", "reset"]);
   if (!allowed.has(effect)) {
     return res.status(400).json({ errors: [{ message: "Invalid 'effect' trigger field" }] });
   }
