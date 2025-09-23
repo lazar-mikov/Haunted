@@ -1522,8 +1522,8 @@ app.post("/api/kill", (req, res) => {
         },
         triggers: {
           effect_requested: { effect: "blackout" },
-          effect_requested2: { 
-            effect_requested2: "blackon",  // Add this nested property
+          light_control: { 
+            light_control: "blackon",  // Add this nested property
             effect: "blackout2" 
           }
         }
@@ -1627,7 +1627,7 @@ app.post("/api/kill", (req, res) => {
 });
 
  // === Trigger endpoint the tests are checking ===
-  app.post("/ifttt/v1/triggers/effect_requested2", (req, res) => {
+  app.post("/ifttt/v1/triggers/light_control", (req, res) => {
   // ADD THIS LOGGING
   console.log("=== TRIGGER ENDPOINT CALLED ===");
   console.log("Headers:", req.headers);
