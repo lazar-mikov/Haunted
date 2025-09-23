@@ -1522,6 +1522,7 @@ app.post("/api/kill", (req, res) => {
         },
         triggers: {
           effect_requested: { effect: "blackout" },
+          effect_requested_e701ad4: { effect: "blackout" },
           light_control: { 
             light_control: "blackon2",  // Add this nested property
             effect: "blackout2" 
