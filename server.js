@@ -1523,7 +1523,7 @@ app.post("/api/kill", (req, res) => {
         triggers: {
           effect_requested: { effect: "blackout" },
           light_control: { 
-            light_control: "blackon",  // Add this nested property
+            light_control: "blackon2",  // Add this nested property
             effect: "blackout2" 
           }
         }
@@ -1627,7 +1627,7 @@ app.post("/api/kill", (req, res) => {
 });
 
  // === Trigger endpoint the tests are checking ===
-  app.post("/ifttt/v1/triggers/light_control", (req, res) => {
+  app.post("/ifttt/v1/triggers/effect_requested_e701ad4", (req, res) => {
   // ADD THIS LOGGING
   console.log("=== TRIGGER ENDPOINT CALLED ===");
   console.log("Headers:", req.headers);
@@ -1656,7 +1656,7 @@ app.post("/api/kill", (req, res) => {
     req.body?.effect ??
     "";
 
-  const allowed = new Set(["blackout2", "blackon2" ]);
+  const allowed = new Set([ "blackout", "blackon", "plug_on", "reset"  ]);
   if (!allowed.has(effect)) {
     return res.status(400).json({ errors: [{ message: "Invalid 'effect' trigger field" }] });
   }
