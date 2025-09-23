@@ -1516,6 +1516,32 @@ app.post("/api/kill", (req, res) => {
   });
 });
 
+app.post("/ifttt/v1/webhooks/trigger_subscription/fired", (req, res) => {
+  console.log("=== TRIGGER SUBSCRIPTION FIRED ===");
+  console.log("Headers:", req.headers);
+  console.log("Body:", req.body);
+  
+  // Validate service key
+  const svcKey = req.get("IFTTT-Service-Key") || req.get("IFTTT-Channel-Key");
+  if (!svcKey || svcKey !== process.env.IFTTT_SERVICE_KEY) {
+    return res.status(401).json({ errors: [{ message: "invalid service key" }] });
+  }
+  
+  // Extract trigger data
+  const data = req.body?.data;
+  if (data) {
+    console.log("Connection:", data.connection_id);
+    console.log("Trigger:", data.trigger_id); 
+    console.log("Feature:", data.feature_id);
+    
+    // This is where your runtime script should execute
+    // For now, just acknowledge receipt
+    console.log("Trigger subscription fired successfully");
+  }
+  
+  return res.status(200).json({ success: true });
+});
+
   // 2) User info (Bearer token)
   app.get("/ifttt/v1/user/info", (req, res) => {
     const auth  = req.headers.authorization ?? "";
