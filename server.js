@@ -1427,26 +1427,9 @@ async function handleTrigger(req, res, body) {
       return res.status(400).json({ ok: false, error: "invalid effect" });
     }
 
-    if (effect === "blackout") {
-      console.log("Calling blackout API...");
-      const response = await axios.post(
-        "https://connect.ifttt.com/v2/connections/pkWqhLe6/actions/tplink_tapo.action_turn_off/run?user_id=demo-user-001",
-        {},
-        { headers: { "IFTTT-Service-Key": process.env.IFTTT_SERVICE_KEY, "Content-Type": "application/json; charset=utf-8" }}
-      );
-      console.log("Blackout response:", response.status, response.data);
-      
-    } else if (effect === "blackon") {
-      console.log("Calling blackon API...");
-      const response = await axios.post(
-        "https://connect.ifttt.com/v2/connections/pkWqhLe6/actions/tplink_tapo.action_turn_on/run?user_id=demo-user-001",
-        {},
-        { headers: { "IFTTT-Service-Key": process.env.IFTTT_SERVICE_KEY, "Content-Type": "application/json; charset=utf-8" }}
-      );
-      console.log("Blackon response:", response.status, response.data);
-    }
-    
-    return res.json({ ok: true, via: "direct-tapo-api", effect: effect });
+    // NO direct API calls - let runtime script handle Tapo actions
+    console.log("Trigger successful, runtime script will handle actions");
+    return res.json({ ok: true, via: "runtime-script", effect: effect });
     
   } catch (e) {
     console.error("=== API ERROR ===");
