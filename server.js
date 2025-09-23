@@ -25,6 +25,9 @@ const deviceStates = new Map();
 const discoveredLights = new Map(); // userId -> lights array
 const userLightSessions = new Map(); // sessionId -> lights
 
+const triggerEvents = new Map(); // Store real trigger events
+
+
 // Initialize contact sensor states
 const initializeContactSensors = () => {
   deviceStates.set("haunted-blackout-sensor", "NOT_DETECTED");
@@ -1427,15 +1430,43 @@ async function handleTrigger(req, res, body) {
       return res.status(400).json({ ok: false, error: "invalid effect" });
     }
 
-    // NO direct API calls - let runtime script handle Tapo actions
-    console.log("Trigger successful, runtime script will handle actions");
-    return res.json({ ok: true, via: "runtime-script", effect: effect });
+    // Store the real trigger event
+    const eventId = `${effect}-${Date.now()}`;
+    const triggerEvent = {
+      id: eventId,
+      effect: effect,
+      title: `Effect requested: ${effect}`,
+      created_at: new Date().toISOString(),
+      meta: { id: eventId, timestamp: Math.floor(Date.now() / 1000) }
+    };
+    
+    triggerEvents.set(eventId, triggerEvent);
+    console.log("Stored trigger event:", eventId);
+
+    // Notify IFTTT using Realtime API
+    try {
+      await axios.post('https://connect.ifttt.com/v1/notifications', {
+        data: [{
+          user_id: "demo-user-001",
+          trigger_identity: "effect_trigger"
+        }]
+      }, {
+        headers: {
+          'IFTTT-Service-Key': process.env.IFTTT_SERVICE_KEY,
+          'Content-Type': 'application/json'
+        },
+        timeout: 3000
+      });
+      console.log("Notified IFTTT via Realtime API");
+    } catch (e) {
+      console.log("Realtime API notification failed:", e.message);
+    }
+
+    return res.json({ ok: true, via: "stored-event", effect: effect, eventId: eventId });
     
   } catch (e) {
     console.error("=== API ERROR ===");
-    console.error("Status:", e.response?.status);
-    console.error("Data:", e.response?.data);
-    return res.status(500).json({ ok: false, error: e.response?.data || e.message });
+    return res.status(500).json({ ok: false, error: e.message });
   }
 }
 
@@ -1582,57 +1613,35 @@ app.post("/ifttt/v1/webhooks/trigger_subscription/fired", (req, res) => {
   });
 
   // === Trigger endpoint the tests are checking ===
-  app.post("/ifttt/v1/triggers/effect_requested", (req, res) => {
-  // ADD THIS LOGGING
+app.post("/ifttt/v1/triggers/effect_requested", (req, res) => {
   console.log("=== TRIGGER ENDPOINT CALLED ===");
-  console.log("Headers:", req.headers);
-  console.log("Authorization:", req.headers.authorization);
-  console.log("Body:", req.body);
-  console.log("================================");
-
-  // Auth via Bearer token OR Service Key
+  
   const auth = req.headers.authorization ?? "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
   const t = token && tokens.get(token);
-  
   const svcKey = req.get("IFTTT-Service-Key") || req.get("ifttt-service-key");
   
-  // ALLOW EITHER TOKEN OR SERVICE KEY
   if (!t && (!svcKey || svcKey !== process.env.IFTTT_SERVICE_KEY)) {
-    console.log("AUTH FAILED - Token:", token?.substring(0, 8), "ServiceKey:", svcKey?.substring(0, 8));
     return res.status(401).json({ errors: [{ message: "invalid_token_or_service_key" }] });
   }
 
-  console.log("AUTH SUCCESS - Using:", t ? "Bearer Token" : "Service Key");
-
-  // Accept either nested or flat
-  const effect =
-    req.body?.triggerFields?.effect ??
-    req.body?.effect ??
-    "";
-
-  const allowed = new Set(["blackout", "blackon", "blackout2", "blackon2", "plug_on", "reset"]);
-  if (!allowed.has(effect)) {
-    return res.status(400).json({ errors: [{ message: "Invalid 'effect' trigger field" }] });
-  }
-
-  // Optional limit (default 50, clamp 0..50)
-  let limit = parseInt(req.body?.limit, 10);
-  if (isNaN(limit)) limit = 50;
-  if (limit < 0) limit = 0;
+  // Get requested effect or return all recent events
+  const requestedEffect = req.body?.triggerFields?.effect;
+  let limit = parseInt(req.body?.limit, 10) || 50;
   if (limit > 50) limit = 50;
 
-  const now = Math.floor(Date.now() / 1000);
-  const data = Array.from({ length: limit }, (_, i) => {
-    const ts = now - i * 60; // 1 minute apart, newest first
-    return {
-      title: `Effect requested: ${effect}`,
-      effect,
-      created_at: new Date(ts * 1000).toISOString(), // REQUIRED ISO8601
-      meta: { id: `effect-${effect}-${ts}`, timestamp: ts } // REQUIRED meta fields
-    };
-  });
-
+  // Get recent events from storage
+  const allEvents = Array.from(triggerEvents.values())
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  
+  let filteredEvents = allEvents;
+  if (requestedEffect) {
+    filteredEvents = allEvents.filter(event => event.effect === requestedEffect);
+  }
+  
+  const data = filteredEvents.slice(0, limit);
+  
+  console.log(`Returning ${data.length} trigger events`);
   return res.status(200).json({ data });
 });
 
