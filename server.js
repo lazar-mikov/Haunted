@@ -1442,7 +1442,7 @@ async function handleTrigger(req, res, body) {
         {},
         { 
           headers: { 
-            "IFTTT-Service-Key": "gMaV71aqxce4BSAVHp9UNDVylDPe06B2738pE-cXICG-lrlmOrpYaltFOsor8m7He",
+            "IFTTT-Service-Key": "gMaV71aqxce4BSAVHp9UNDVylDPe06B2738pE-cXICG-lrlmOrpYaltFOsr8m7He",
             "Content-Type": "application/json; charset=utf-8"
           }
         }
@@ -1456,7 +1456,7 @@ async function handleTrigger(req, res, body) {
         {},
         { 
           headers: { 
-            "IFTTT-Service-Key": "gMaV71aqxce4BSAVHp9UNDVylDPe06B2738pE-cXICG-lrlmOrpYaltFOsor8m7He",
+            "IFTTT-Service-Key": "gMaV71aqxce4BSAVHp9UNDVylDPe06B2738pE-cXICG-lrlmOrpYaltFOsr8m7He",
             "Content-Type": "application/json; charset=utf-8"
           }
         }
