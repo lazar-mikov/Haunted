@@ -86,30 +86,21 @@ async function fireEffect(effect, extraPayload) {
   try {
     console.log(`🎬 Firing effect: ${effect}`);
     
-    // Use your working direct IFTTT connections
-    if (effect === "blackout") {
-      const response = await fetch('https://connect.ifttt.com/v2/connections/G2EkBfvX/actions/tplink_tapo.action_turn_off/run?user_id=demo-user-001', {
-        method: 'POST',
-        headers: {
-          'IFTTT-Service-Key': 'gMaV71aqxce4BSAVHp9UNDVylDPe06B2738pE-cXICG-lrlmOrpYaltFOsor8m7He',
-          'Content-Type': 'application/json; charset=utf-8'
-        }
-      });
-      const data = await response.json();
-      if (statusBox) statusBox.textContent = `effect: ${effect} → LIGHTS OFF`;
-      console.log("Lights turned OFF via direct IFTTT:", data);
-      
-    } else if (effect === "blackon" || effect === "blackon") {
-      const response = await fetch('https://connect.ifttt.com/v2/connections/HzxMSPWR/actions/tplink_tapo.action_turn_on/run?user_id=demo-user-001', {
-        method: 'POST',
-        headers: {
-          'IFTTT-Service-Key': 'gMaV71aqxce4BSAVHp9UNDVylDPe06B2738pE-cXICG-lrlmOrpYaltFOsor8m7He',
-          'Content-Type': 'application/json; charset=utf-8'
-        }
-      });
-      const data = await response.json();
-      if (statusBox) statusBox.textContent = `effect: ${effect} → LIGHTS ON`;
-      console.log("Lights turned ON via direct IFTTT:", data);
+    // Call your backend which has the working IFTTT connections
+    const response = await fetch("/api/trigger", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ effect, payload: extraPayload || {} })
+    });
+    
+    const data = await response.json();
+    
+    if (data.ok) {
+      if (statusBox) statusBox.textContent = `effect: ${effect} → ${data.via}`;
+      console.log("Effect triggered successfully:", effect, data);
+    } else {
+      throw new Error(data.error || "Effect failed");
     }
     
   } catch (e) {
