@@ -86,9 +86,8 @@ async function fireEffect(effect, extraPayload) {
   try {
     console.log(`🎬 Firing effect: ${effect}`);
     
-    // Call your backend which has the working IFTTT connections
     const response = await fetch("/api/trigger", {
-      method: "POST",
+      method: "POST", 
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({ effect, payload: extraPayload || {} })
@@ -98,14 +97,14 @@ async function fireEffect(effect, extraPayload) {
     
     if (data.ok) {
       if (statusBox) statusBox.textContent = `effect: ${effect} → ${data.via}`;
-      console.log("Effect triggered successfully:", effect, data);
+      console.log("✅ Effect triggered:", effect, data);
     } else {
-      throw new Error(data.error || "Effect failed");
+      console.error("❌ Effect failed:", data.error);
     }
     
   } catch (e) {
     if (statusBox) statusBox.textContent = `effect: ${effect} → ERROR`;
-    console.error("Effect error:", e);
+    console.error("❌ Effect error:", e);
   }
 }
 
