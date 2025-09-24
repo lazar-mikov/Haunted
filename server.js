@@ -1373,6 +1373,11 @@ app.get("/dev/prime-session", (req, res) => {
   }
 });
 
+
+app.get('/test-lights', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'tapoifttt.html'));
+});
+
 /** ---------- [ADDED] Debug endpoint to check token status ---------- */
 app.get("/api/debug/token", (req, res) => {
   res.json({
