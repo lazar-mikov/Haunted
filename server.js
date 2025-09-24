@@ -1435,43 +1435,41 @@ async function handleTrigger(req, res, body) {
       return res.status(400).json({ ok: false, error: "invalid effect" });
     }
 
-    // Store the real trigger event
-    const eventId = `${effect}-${Date.now()}`;
-    const triggerEvent = {
-      id: eventId,
-      effect: effect,
-      title: `Effect requested: ${effect}`,
-      created_at: new Date().toISOString(),
-      meta: { id: eventId, timestamp: Math.floor(Date.now() / 1000) }
-    };
-    
-    triggerEvents.set(eventId, triggerEvent);
-    console.log("Stored trigger event:", eventId);
-
-    // Notify IFTTT using Realtime API
-    try {
-      await axios.post('https://connect.ifttt.com/v1/notifications', {
-        data: [{
-          user_id: "demo-user-001",
-          trigger_identity: "effect_trigger"
-        }]
-      }, {
-        headers: {
-          'IFTTT-Service-Key': process.env.IFTTT_SERVICE_KEY,
-          'Content-Type': 'application/json'
-        },
-        timeout: 3000
-      });
-      console.log("Notified IFTTT via Realtime API");
-    } catch (e) {
-      console.log("Realtime API notification failed:", e.message);
+    // Call the working IFTTT connections directly
+    if (effect === "blackout") {
+      await axios.post(
+        "https://connect.ifttt.com/v2/connections/G2EkBfvX/actions/tplink_tapo.action_turn_off/run?user_id=demo-user-001",
+        {},
+        { 
+          headers: { 
+            "IFTTT-Service-Key": "gMaV71aqxce4BSAVHp9UNDVylDPe06B2738pE-cXICG-lrlmOrpYaltFOsor8m7He",
+            "Content-Type": "application/json; charset=utf-8"
+          }
+        }
+      );
+      console.log("Blackout executed via direct connection");
+      return res.json({ ok: true, via: "ifttt-direct-off", effect: effect });
+      
+    } else if (effect === "blackon") {
+      await axios.post(
+        "https://connect.ifttt.com/v2/connections/HzxMSPWR/actions/tplink_tapo.action_turn_on/run?user_id=demo-user-001",
+        {},
+        { 
+          headers: { 
+            "IFTTT-Service-Key": "gMaV71aqxce4BSAVHp9UNDVylDPe06B2738pE-cXICG-lrlmOrpYaltFOsor8m7He",
+            "Content-Type": "application/json; charset=utf-8"
+          }
+        }
+      );
+      console.log("Blackon executed via direct connection");
+      return res.json({ ok: true, via: "ifttt-direct-on", effect: effect });
     }
-
-    return res.json({ ok: true, via: "stored-event", effect: effect, eventId: eventId });
     
   } catch (e) {
     console.error("=== API ERROR ===");
-    return res.status(500).json({ ok: false, error: e.message });
+    console.error("Status:", e.response?.status);
+    console.error("Data:", e.response?.data);
+    return res.status(500).json({ ok: false, error: e.response?.data || e.message });
   }
 }
 
