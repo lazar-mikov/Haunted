@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tapo Light Control</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        
+        .container {
+            text-align: center;
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        
+        button {
+            font-size: 18px;
+            padding: 15px 30px;
+            margin: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 150px;
+        }
+        
+        .turn-on {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        .turn-on:hover {
+            background-color: #45a049;
+        }
+        
+        .turn-off {
+            background-color: #f44336;
+            color: white;
+        }
+        
+        .turn-off:hover {
+            background-color: #da190b;
+        }
+        
+        .status {
+            margin-top: 20px;
+            font-weight: bold;
+            min-height: 20px;
+        }
+        
+        .success {
+            color: #4CAF50;
+        }
+        
+        .error {
+            color: #f44336;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Tapo Light Control</h1>
+        
+        <button class="turn-on" onclick="turnOnLights()">Turn On Lights</button>
+        <button class="turn-off" onclick="turnOffLights()">Turn Off Lights</button>
+        
+        <div class="status" id="status"></div>
+    </div>
+
+    <script>
+        function updateStatus(message, isSuccess = true) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + (isSuccess ? 'success' : 'error');
+        }
+
+        function turnOnLights() {
+            updateStatus('Turning on lights...');
+            
+            fetch('https://connect.ifttt.com/v2/connections/HzxMSPWR/actions/tplink_tapo.action_turn_on/run?user_id=demo-user-001', {
+                method: 'POST',
+                headers: {
+                    'IFTTT-Service-Key': 'gMaV71aqxce4BSAVHp9UNDVylDPe06B2738pE-cXICG-lrlmOrpYaltFOsr8m7He',
+                    'Content-Type': 'application/json; charset=utf-8'
+                }
+            })
+            .then(r => r.json())
+            .then(data => {
+                console.log('Turn On Response:', data);
+                updateStatus('Lights turned on successfully!', true);
+            })
+            .catch(error => {
+                console.error('Turn On Error:', error);
+                updateStatus('Failed to turn on lights', false);
+            });
+        }
+
+        function turnOffLights() {
+            updateStatus('Turning off lights...');
+            
+            fetch('https://connect.ifttt.com/v2/connections/G2EkBfvX/actions/tplink_tapo.action_turn_off/run?user_id=demo-user-001', {
+                method: 'POST',
+                headers: {
+                    'IFTTT-Service-Key': 'gMaV71aqxce4BSAVHp9UNDVylDPe06B2738pE-cXICG-lrlmOrpYaltFOsor8m7He',
+                    'Content-Type': 'application/json; charset=utf-8'
+                }
+            })
+            .then(r => r.json())
+            .then(data => {
+                console.log('Turn Off Response:', data);
+                updateStatus('Lights turned off successfully!', true);
+            })
+            .catch(error => {
+                console.error('Turn Off Error:', error);
+                updateStatus('Failed to turn off lights', false);
+            });
+        }
+    </script>
+</body>
+</html>
