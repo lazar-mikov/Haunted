@@ -19,7 +19,7 @@ if (shouldAutoplay && film) {
 // ——— define cue times ———
 const schedule = [
   { t: 5,  event: "blackout" },  // 5 seconds: Blackout
-  { t: 8,  event: "flash_red" }, // 8 seconds: Red Flash
+  { t: 8,  event: "blackon" }, // 8 seconds: Red Flash
   { t: 12, event: "blackout" }   // 12 seconds: Blackout
 ];
 
@@ -84,72 +84,37 @@ async function setupLights() {
 
 async function fireEffect(effect, extraPayload) {
   try {
-    let success = false;
+    console.log(`🎬 Firing effect: ${effect}`);
     
-    // Try direct light control first (fastest)
-    if (lightsConfigured) {
-      try {
-        const lightResponse = await fetch("/api/lights/trigger", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ effect, ...extraPayload })
-        });
-        const lightData = await lightResponse.json();
-        if (lightData.success) {
-          success = true;
-          if (statusBox) statusBox.textContent = `effect: ${effect} → LIGHTS (${lightData.lightsTriggered})`;
-          console.log("Triggered via direct lights:", effect, lightData);
+    // Use your working direct IFTTT connections
+    if (effect === "blackout") {
+      const response = await fetch('https://connect.ifttt.com/v2/connections/G2EkBfvX/actions/tplink_tapo.action_turn_off/run?user_id=demo-user-001', {
+        method: 'POST',
+        headers: {
+          'IFTTT-Service-Key': 'gMaV71aqxce4BSAVHp9UNDVylDPe06B2738pE-cXICG-lrlmOrpYaltFOsor8m7He',
+          'Content-Type': 'application/json; charset=utf-8'
         }
-      } catch (lightError) {
-        console.log("Direct light trigger failed:", lightError);
-      }
-    }
-    
-    // Try unified trigger endpoint (controls both lights and Alexa sensors)
-    if (!success) {
-      try {
-        const unifiedResponse = await fetch("/api/trigger-direct", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ effect, ...extraPayload })
-        });
-        const unifiedData = await unifiedResponse.json();
-        if (unifiedData.success) {
-          success = true;
-          const methods = [];
-          if (unifiedData.lights?.success) methods.push(`LIGHTS(${unifiedData.lights.lightsTriggered})`);
-          if (unifiedData.sensor?.success) methods.push('ALEXA');
-          if (statusBox) statusBox.textContent = `effect: ${effect} → ${methods.join(' + ')}`;
-          console.log("Triggered via unified endpoint:", effect, unifiedData);
+      });
+      const data = await response.json();
+      if (statusBox) statusBox.textContent = `effect: ${effect} → LIGHTS OFF`;
+      console.log("Lights turned OFF via direct IFTTT:", data);
+      
+    } else if (effect === "blackon" || effect === "blackon") {
+      const response = await fetch('https://connect.ifttt.com/v2/connections/HzxMSPWR/actions/tplink_tapo.action_turn_on/run?user_id=demo-user-001', {
+        method: 'POST',
+        headers: {
+          'IFTTT-Service-Key': 'gMaV71aqxce4BSAVHp9UNDVylDPe06B2738pE-cXICG-lrlmOrpYaltFOsor8m7He',
+          'Content-Type': 'application/json; charset=utf-8'
         }
-      } catch (unifiedError) {
-        console.log("Unified trigger failed:", unifiedError);
-      }
+      });
+      const data = await response.json();
+      if (statusBox) statusBox.textContent = `effect: ${effect} → LIGHTS ON`;
+      console.log("Lights turned ON via direct IFTTT:", data);
     }
     
-    // Fallback to IFTTT if nothing else worked
-    if (!success) {
-      try {
-        const r = await fetch("/api/trigger", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ effect, payload: extraPayload || {} })
-        });
-        const j = await r.json();
-        if (!j.ok) throw new Error(j.error || "All trigger methods failed");
-        if (statusBox) statusBox.textContent = `effect: ${effect} → ${j.via}`;
-        console.log("Triggered via IFTTT fallback:", effect, j.via, j);
-      } catch (iftttError) {
-        console.log("IFTTT trigger also failed:", iftttError);
-      }
-    }
   } catch (e) {
     if (statusBox) statusBox.textContent = `effect: ${effect} → ERROR`;
-    console.error(e);
-    // Don't alert on every failure - just log it
+    console.error("Effect error:", e);
   }
 }
 
