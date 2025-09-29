@@ -532,7 +532,7 @@ async function sendAlexaChangeReport(endpointId, newState, accessToken) {
       }
     };
 
-    const response = await axios.post('https://api.amazonalexa.com/v1/events', event, {
+    const response = await axios.post('https://api.amazonalexa.com/v3/events', event, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
