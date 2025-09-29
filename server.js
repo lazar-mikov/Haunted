@@ -556,6 +556,9 @@ async function triggerContactSensor(sensorId, effect) {
     // Change sensor state to DETECTED
     deviceStates.set(sensorId, "DETECTED");
     console.log(`✅ Sensor ${sensorId} state changed to DETECTED`);
+
+    // 🚨 SEND CHANGE REPORT TO ALEXA (this was missing!)
+    await sendAlexaChangeReport(sensorId, "DETECTED", accessToken);
     
     // Reset sensor state after a short delay
     setTimeout(async () => {
