@@ -549,15 +549,26 @@ async function sendAlexaChangeReport(endpointId, newState, accessToken) {
 }
 
 // Trigger contact sensor for Alexa
+// Trigger contact sensor for Alexa
 async function triggerContactSensor(sensorId, effect) {
   try {
     console.log(`🎭 Triggering contact sensor: ${sensorId} for effect: ${effect}`);
     
+    // 🚨 GET THE ACCESS TOKEN (this line was missing!)
+    const storageKey = 'alexa_main_tokens';
+    const accessToken = alexaUserSessions.get(storageKey);
+    
+    // Check if we have a token
+    if (!accessToken) {
+      console.warn('⚠️ No access token available for sending change reports');
+      return { success: false, message: 'No Alexa connection' };
+    }
+    
     // Change sensor state to DETECTED
     deviceStates.set(sensorId, "DETECTED");
     console.log(`✅ Sensor ${sensorId} state changed to DETECTED`);
-
-    // 🚨 SEND CHANGE REPORT TO ALEXA (this was missing!)
+    
+    // Send change report to Alexa
     await sendAlexaChangeReport(sensorId, "DETECTED", accessToken);
     
     // Reset sensor state after a short delay
@@ -565,6 +576,9 @@ async function triggerContactSensor(sensorId, effect) {
       try {
         deviceStates.set(sensorId, "NOT_DETECTED");
         console.log(`🔄 Reset sensor: ${sensorId} to NOT_DETECTED`);
+        
+        // Send reset change report
+        await sendAlexaChangeReport(sensorId, "NOT_DETECTED", accessToken);
       } catch (error) {
         console.error(`❌ Failed to reset sensor ${sensorId}:`, error.message);
       }
