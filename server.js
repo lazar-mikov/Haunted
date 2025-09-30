@@ -1063,18 +1063,14 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
       const grantCode = directive.payload.grant.code;
       
       console.log('🔑 Exchanging grant code for event gateway access...');
-      console.log('Grant code:', grantCode);
       
-      // For AcceptGrant, DON'T include redirect_uri
+      // Use ALEXA credentials, not LWA credentials!
       const params = new URLSearchParams({
         grant_type: 'authorization_code',
         code: grantCode,
-        client_id: process.env.LWA_CLIENT_ID,
-        client_secret: process.env.LWA_CLIENT_SECRET
-        // NO redirect_uri for AcceptGrant!
+        client_id: process.env.ALEXA_CLIENT_ID,      // Changed!
+        client_secret: process.env.ALEXA_CLIENT_SECRET  // Changed!
       });
-      
-      console.log('Token exchange params:', params.toString());
       
       const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', 
         params.toString(),
@@ -1085,15 +1081,14 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
       );
       
       const tokens = tokenResponse.data;
-      console.log('✅ Grant exchange successful - Event Gateway token received');
+      console.log('✅ Event Gateway token received!');
       
       // Store tokens
       const storageKey = 'alexa_main_tokens';
       alexaUserSessions.set(storageKey, tokens.access_token);
       alexaRefreshTokens.set(storageKey, tokens.refresh_token);
-      console.log('✅ Tokens stored');
       
-      const response = {
+      res.json({
         event: {
           header: {
             namespace: "Alexa.Authorization",
@@ -1103,25 +1098,21 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
           },
           payload: {}
         }
-      };
-      
-      res.json(response);
-    } else {
-      res.status(400).json({ error: 'Invalid directive' });
+      });
     }
   } catch (error) {
-    console.error('❌ Grant handling failed:', error.response?.data || error.message);
+    console.error('❌ Grant failed:', error.response?.data || error.message);
     res.status(500).json({ 
       event: {
         header: {
           namespace: "Alexa.Authorization",
           name: "ErrorResponse",
-          messageId: directive?.header?.messageId || 'error',
+          messageId: req.body?.directive?.header?.messageId || 'error',
           payloadVersion: "3"
         },
         payload: {
           type: "ACCEPT_GRANT_FAILED",
-          message: "Failed to exchange grant code"
+          message: "Token exchange failed"
         }
       }
     });
