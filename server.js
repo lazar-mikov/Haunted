@@ -1089,6 +1089,17 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
       const tokens = tokenResponse.data;
       console.log('✅ Event Gateway token received!');
       console.log('📊 Token length:', tokens.access_token.length); // Should be 800+
+
+      // ADD THIS DETAILED LOGGING
+      console.log('✅ Event Gateway token received!');
+      console.log('📊 Full token response:', {
+        access_token_length: tokens.access_token?.length || 0,
+        access_token_start: tokens.access_token?.substring(0, 50) || 'NONE',
+        access_token_end: tokens.access_token?.substring(tokens.access_token.length - 30) || 'NONE',
+        refresh_token_length: tokens.refresh_token?.length || 0,
+        expires_in: tokens.expires_in,
+        token_type: tokens.token_type
+      });
       
       // Store with EVENT_GATEWAY key (different from account linking)
       const storageKey = 'alexa_event_gateway_tokens';  // Changed!
