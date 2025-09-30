@@ -65,3 +65,5 @@ export function createTriggerRoutes(tokenManager, deviceStates) {
 
   return router;
 }
+
+//test
