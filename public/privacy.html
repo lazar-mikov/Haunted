@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Haunted House Effects - Privacy Policy</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 { color: #333; }
+        h2 { color: #555; margin-top: 30px; }
+        ul { margin-left: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Privacy Policy for Haunted House Effects Alexa Skill</h1>
+    <p><strong>Effective Date:</strong> October 1, 2025</p>
+    <p><strong>Last Updated:</strong> October 1, 2025</p>
+
+    <h2>1. Introduction</h2>
+    <p>This Privacy Policy describes how the Haunted House Effects skill ("we," "our," or "the skill") collects, uses, and protects your information when you use our Alexa skill. By enabling this skill, you agree to the collection and use of information in accordance with this policy.</p>
+
+    <h2>2. Information We Collect</h2>
+    
+    <h3>2.1 Amazon Account Information</h3>
+    <p>When you enable this skill and complete account linking, we collect:</p>
+    <ul>
+        <li>Amazon user ID (anonymized identifier)</li>
+        <li>OAuth access tokens provided by Amazon</li>
+        <li>OAuth refresh tokens for maintaining your session</li>
+    </ul>
+
+    <h3>2.2 Device State Information</h3>
+    <p>The skill stores minimal state information about virtual contact sensors:</p>
+    <ul>
+        <li>Sensor IDs (haunted-blackout-sensor, haunted-flash-red-sensor, etc.)</li>
+        <li>Current sensor states (DETECTED or NOT_DETECTED)</li>
+        <li>Timestamps of state changes</li>
+    </ul>
+
+    <h3>2.3 Usage Information</h3>
+    <p>We collect basic usage logs for troubleshooting:</p>
+    <ul>
+        <li>Skill invocation timestamps</li>
+        <li>Device discovery requests</li>
+        <li>Error messages and system logs</li>
+    </ul>
+
+    <h2>3. How We Use Your Information</h2>
+    <p>We use collected information solely to:</p>
+    <ul>
+        <li>Authenticate your identity through Amazon's secure login</li>
+        <li>Maintain your skill session and provide continuous functionality</li>
+        <li>Trigger virtual contact sensors at appropriate film timestamps</li>
+        <li>Report sensor states to Alexa when requested</li>
+        <li>Diagnose and fix technical issues</li>
+        <li>Improve skill performance and reliability</li>
+    </ul>
+    <p><strong>We do not:</strong></p>
+    <ul>
+        <li>Access, store, or control your actual smart home devices</li>
+        <li>Monitor which lights or devices you connect to our sensors</li>
+        <li>Track your viewing habits or film playback behavior</li>
+        <li>Sell, rent, or share your data with third parties for marketing</li>
+        <li>Use your information for any purpose unrelated to skill functionality</li>
+    </ul>
+
+    <h2>4. Data Storage and Security</h2>
+    
+    <h3>4.1 Storage Location</h3>
+    <p>Your data is stored in:</p>
+    <ul>
+        <li><strong>Upstash Redis:</strong> Encrypted database (EU region) for token storage</li>
+        <li><strong>Railway:</strong> Application hosting platform (EU region)</li>
+        <li><strong>AWS Lambda:</strong> Amazon's serverless computing (EU region)</li>
+    </ul>
+
+    <h3>4.2 Security Measures</h3>
+    <ul>
+        <li>OAuth tokens are stored encrypted in Redis with TLS encryption in transit</li>
+        <li>All API communications use HTTPS/TLS encryption</li>
+        <li>Access tokens automatically expire after 60 minutes</li>
+        <li>No payment information is collected or stored</li>
+        <li>Server access is restricted and logged</li>
+    </ul>
+
+    <h2>5. Data Retention</h2>
+    <ul>
+        <li><strong>Access tokens:</strong> Stored for 60 minutes, then automatically deleted</li>
+        <li><strong>Refresh tokens:</strong> Stored until you disable the skill or revoke access</li>
+        <li><strong>Sensor states:</strong> Reset automatically after each trigger (2 seconds)</li>
+        <li><strong>Usage logs:</strong> Retained for 30 days for troubleshooting, then deleted</li>
+    </ul>
+
+    <h2>6. Third-Party Services</h2>
+    <p>This skill uses the following third-party services:</p>
+    <ul>
+        <li><strong>Amazon Alexa:</strong> Voice assistant platform and smart home infrastructure</li>
+        <li><strong>Login with Amazon:</strong> Secure authentication service</li>
+        <li><strong>Upstash Redis:</strong> Encrypted database hosting (Privacy Policy: upstash.com/trust/privacy)</li>
+        <li><strong>Railway:</strong> Application hosting (Privacy Policy: railway.app/legal/privacy)</li>
+    </ul>
+    <p>These services may collect their own data as described in their respective privacy policies.</p>
+
+    <h2>7. Your Rights and Choices</h2>
+    
+    <h3>7.1 Access and Deletion</h3>
+    <p>You have the right to:</p>
+    <ul>
+        <li>Request information about what data we store about you</li>
+        <li>Request deletion of your data at any time</li>
+        <li>Revoke the skill's access to your Amazon account</li>
+    </ul>
+
+    <h3>7.2 How to Remove Your Data</h3>
+    <p>To delete all your data:</p>
+    <ol>
+        <li>Open the Alexa app</li>
+        <li>Go to Skills & Games → Your Skills → Haunted House Effects</li>
+        <li>Tap "Settings" → "Disable Skill"</li>
+        <li>Tap "Unlink Account" (if shown)</li>
+    </ol>
+    <p>This immediately deletes all tokens and disconnects the skill. Alternatively, email us at lazarmikov@gmail.com to request manual data deletion.</p>
+
+    <h2>8. Children's Privacy</h2>
+    <p>This skill is not intended for children under 16 years of age. We do not knowingly collect personal information from children. The skill's content (horror/suspense themes) is also not appropriate for young children.</p>
+
+    <h2>9. Changes to This Privacy Policy</h2>
+    <p>We may update this Privacy Policy periodically. Changes will be posted at this URL with an updated "Last Updated" date. Continued use of the skill after changes constitutes acceptance of the updated policy.</p>
+
+    <h2>10. International Users</h2>
+    <p>This skill is hosted in the European Union. If you use the skill from outside the EU, your data will be transferred to and stored in EU servers. By using the skill, you consent to this data transfer.</p>
+
+    <h2>11. Contact Us</h2>
+    <p>For questions, concerns, or data access/deletion requests:</p>
+    <ul>
+        <li><strong>Email:</strong> lazarmikov@gmail.com</li>
+        <li><strong>Response Time:</strong> We aim to respond within 48 hours</li>
+    </ul>
+
+    <h2>12. Legal Basis for Processing (GDPR)</h2>
+    <p>For users in the European Union, our legal basis for processing your data is:</p>
+    <ul>
+        <li><strong>Consent:</strong> By enabling the skill and completing account linking</li>
+        <li><strong>Legitimate Interest:</strong> Providing the skill functionality you requested</li>
+    </ul>
+
+    <hr>
+    <p><small>This skill is an independent project and is not affiliated with, sponsored by, or endorsed by Amazon.com, Inc. or its affiliates.</small></p>
+</body>
+</html>
