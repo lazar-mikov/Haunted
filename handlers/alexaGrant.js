@@ -27,7 +27,7 @@ export async function handleAcceptGrant(directive, tokenManager) {
   );
   
   const tokens = tokenResponse.data;
-  tokenManager.storeEventGatewayToken(granteeToken, tokens.access_token, tokens.refresh_token);
+  await tokenManager.storeEventGatewayToken(granteeToken, tokens.access_token, tokens.refresh_token);
   
   return {
     event: {

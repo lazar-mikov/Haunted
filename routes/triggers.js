@@ -7,7 +7,7 @@ export function createTriggerRoutes(tokenManager, deviceStates) {
   const router = express.Router();
 
   async function triggerContactSensor(sensorId, effect) {
-    const accessToken = tokenManager.getEventGatewayToken();
+    const accessToken = await tokenManager.getEventGatewayToken();
     
     if (!accessToken) {
       console.warn('No Event Gateway token available');

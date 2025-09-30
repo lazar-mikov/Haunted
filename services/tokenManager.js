@@ -1,35 +1,52 @@
+import Redis from 'ioredis';
+
 export class TokenManager {
   constructor() {
-    this.alexaUserSessions = new Map();
-    this.alexaRefreshTokens = new Map();
-  }
-
-  storeEventGatewayToken(granteeToken, accessToken, refreshToken) {
-    const key = `event_gateway_${granteeToken}`;
-    this.alexaUserSessions.set(key, accessToken);
-    this.alexaRefreshTokens.set(key, refreshToken);
-    console.log('Event Gateway tokens stored for user');
-  }
-
-  getEventGatewayToken() {
-    for (const [key, token] of this.alexaUserSessions.entries()) {
-      if (key.startsWith('event_gateway_')) {
-        return token;
-      }
+    this.redis = process.env.REDIS_URL 
+      ? new Redis(process.env.REDIS_URL)
+      : null;
+    
+    if (!this.redis) {
+      console.warn('Redis not configured - tokens will be lost on restart');
+    } else {
+      console.log('Redis connected');
     }
-    return null;
   }
 
-  storeAccountLinkToken(accessToken, refreshToken) {
-    this.alexaUserSessions.set('alexa_main_tokens', accessToken);
-    this.alexaRefreshTokens.set('alexa_main_tokens', refreshToken);
+  async storeEventGatewayToken(granteeToken, accessToken, refreshToken) {
+    const key = `event_gateway_${granteeToken}`;
+    
+    if (this.redis) {
+      await this.redis.set(`token:${key}`, accessToken, 'EX', 3600);
+      await this.redis.set(`refresh:${key}`, refreshToken);
+    }
+    
+    console.log('Event Gateway tokens stored');
   }
 
-  getAllTokenInfo() {
+  async getEventGatewayToken() {
+    if (!this.redis) return null;
+    
+    const keys = await this.redis.keys('token:event_gateway_*');
+    if (keys.length === 0) return null;
+    
+    return await this.redis.get(keys[0]);
+  }
+
+  async getAllTokenInfo() {
+    if (!this.redis) {
+      return { 
+        totalSessions: 0, 
+        hasEventGatewayToken: false,
+        redisConnected: false 
+      };
+    }
+    
+    const tokenKeys = await this.redis.keys('token:event_gateway_*');
     return {
-      totalSessions: this.alexaUserSessions.size,
-      totalRefreshTokens: this.alexaRefreshTokens.size,
-      hasEventGatewayToken: this.getEventGatewayToken() !== null
+      totalSessions: tokenKeys.length,
+      hasEventGatewayToken: tokenKeys.length > 0,
+      redisConnected: true
     };
   }
 }
