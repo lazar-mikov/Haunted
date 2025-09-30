@@ -1077,6 +1077,16 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
         client_id: process.env.ALEXA_CLIENT_ID,
         client_secret: process.env.ALEXA_CLIENT_SECRET
       });
+
+       
+      // PRINT THE CREDENTIALS BEING USED
+      console.log('🔑 Using credentials:', {
+        alexa_client_id: process.env.ALEXA_CLIENT_ID,
+        alexa_client_id_start: process.env.ALEXA_CLIENT_ID?.substring(0, 30),
+        lwa_client_id: process.env.LWA_CLIENT_ID,
+        lwa_client_id_start: process.env.LWA_CLIENT_ID?.substring(0, 30),
+        are_they_same: process.env.ALEXA_CLIENT_ID === process.env.LWA_CLIENT_ID
+      });
       
       const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', 
         params.toString(),
