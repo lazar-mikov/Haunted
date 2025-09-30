@@ -563,6 +563,12 @@ async function triggerContactSensor(sensorId, effect) {
       console.warn('⚠️ No access token available for sending change reports');
       return { success: false, message: 'No Alexa connection' };
     }
+
+    console.log('🔍 Token being used:', {
+  hasToken: !!accessToken,
+  tokenStart: accessToken ? accessToken.substring(0, 30) : 'NO TOKEN',
+  tokenLength: accessToken ? accessToken.length : 0
+});
     
     // Change sensor state to DETECTED
     deviceStates.set(sensorId, "DETECTED");
