@@ -16,48 +16,51 @@ if (shouldAutoplay && film) {
 // ——— define cue times ———
 const schedule = [
   { t: 5,  event: "blackout" },  
-  { t: 8,  event: "blackon" }, 
-  { t: 12, event: "blackout" }   
+  { t: 8,  event: "reset" },     // Changed from "blackon" to "reset" (valid effect)
+  { t: 12, event: "flash-red" }, // Example: use flash-red
+  { t: 15, event: "reset" }
 ];
 
-// ——— convert to ms + normalize to the enum effects ———
+// ——— convert to ms ———
 const cues = schedule.map(c => {
-  return { t: c.t * 1000, effect: c.event, fired: false, src: "video_cue" };
+  return { t: c.t * 1000, effect: c.event, fired: false };
 });
 
-// ——— fire a cue slightly EARLY to account for cloud/Alexa latency ———
+// ——— fire slightly early for latency ———
 const EARLY_MS = 1200;
 
-async function fireEffect(effect, extraPayload) {
+async function fireEffect(effect) {
   try {
     console.log(`🎬 Firing effect: ${effect}`);
     
-    const response = await fetch("/api/trigger", {
+    // Updated endpoint and body format
+    const response = await fetch("/api/trigger-direct", {
       method: "POST", 
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ effect, payload: extraPayload || {} })
+      body: JSON.stringify({ effect })  // Simplified body
     });
     
     const data = await response.json();
     
-    if (data.ok) {
-      if (statusBox) statusBox.textContent = `effect: ${effect} → ${data.via}`;
-      console.log("✅ Effect triggered:", effect, data);
+    if (data.success) {
+      if (statusBox) statusBox.textContent = `✅ ${effect} triggered`;
+      console.log("✅ Effect triggered:", data);
     } else {
-      console.error("❌ Effect failed:", data.error);
+      if (statusBox) statusBox.textContent = `❌ ${effect} failed`;
+      console.error("❌ Effect failed:", data);
     }
     
   } catch (e) {
-    if (statusBox) statusBox.textContent = `effect: ${effect} → ERROR`;
+    if (statusBox) statusBox.textContent = `❌ ${effect} error`;
     console.error("❌ Effect error:", e);
   }
 }
 
-// Quick test functions for console
+// Console test function
 window.testEffect = async (effect = "blackout") => {
   console.log(`Testing ${effect} effect...`);
-  await fireEffect(effect, { origin: "manual_test" });
+  await fireEffect(effect);
 };
 
 // ——— high-precision scheduler using requestAnimationFrame ———
@@ -69,13 +72,8 @@ if (film) {
     for (const c of cues) {
       if (!c.fired && nowMs >= (c.t - EARLY_MS)) {
         c.fired = true;
-        fireEffect(c.effect, { 
-          origin: "video", 
-          at_ms: Math.round(nowMs), 
-          cue_time: c.t / 1000,
-          src: c.src 
-        });
-        console.log(`🎬 Triggered ${c.effect} at ${c.t/1000}s (video time: ${nowMs/1000}s)`);
+        fireEffect(c.effect);
+        console.log(`🎬 Triggered ${c.effect} at ${c.t/1000}s (actual: ${nowMs/1000}s)`);
       }
     }
     rafId = requestAnimationFrame(tick);
@@ -84,12 +82,13 @@ if (film) {
   film.addEventListener("play", () => {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(tick);
-    console.log("Video started - cue system active");
+    console.log("▶️ Video started - cue system active");
   });
 
   film.addEventListener("pause", () => {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
+    console.log("⏸️ Video paused - cue system paused");
   });
 
   film.addEventListener("seeking", () => {
@@ -102,15 +101,19 @@ if (film) {
   film.addEventListener("ended", () => {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
-    // Reset cues for replay
     for (const c of cues) c.fired = false;
+    console.log("⏹️ Video ended - cues reset");
   });
 }
 
-// ——— small UI niceties ———
+// ——— UI buttons ———
 if (unmuteBtn && film) {
-  unmuteBtn.onclick = () => { film.muted = false; film.volume = 1.0; };
+  unmuteBtn.onclick = () => { 
+    film.muted = false; 
+    film.volume = 1.0; 
+  };
 }
+
 if (restartBtn && film) {
   restartBtn.onclick = () => {
     for (const c of cues) c.fired = false;
