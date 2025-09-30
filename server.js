@@ -1063,17 +1063,21 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
       const grantCode = directive.payload.grant.code;
       
       console.log('🔑 Exchanging grant code for event gateway access...');
+      console.log('Grant code:', grantCode);
       
-      // Create URL-encoded body (NOT JSON)
+      // For AcceptGrant, DON'T include redirect_uri
       const params = new URLSearchParams({
         grant_type: 'authorization_code',
         code: grantCode,
         client_id: process.env.LWA_CLIENT_ID,
         client_secret: process.env.LWA_CLIENT_SECRET
+        // NO redirect_uri for AcceptGrant!
       });
       
+      console.log('Token exchange params:', params.toString());
+      
       const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', 
-        params.toString(),  // Send as URL-encoded string
+        params.toString(),
         { 
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           timeout: 10000
@@ -1081,12 +1085,13 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
       );
       
       const tokens = tokenResponse.data;
-      console.log('✅ Grant exchange successful');
+      console.log('✅ Grant exchange successful - Event Gateway token received');
       
       // Store tokens
       const storageKey = 'alexa_main_tokens';
       alexaUserSessions.set(storageKey, tokens.access_token);
       alexaRefreshTokens.set(storageKey, tokens.refresh_token);
+      console.log('✅ Tokens stored');
       
       const response = {
         event: {
@@ -1105,18 +1110,18 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
       res.status(400).json({ error: 'Invalid directive' });
     }
   } catch (error) {
-    console.error('Grant handling failed:', error.response?.data || error.message);
+    console.error('❌ Grant handling failed:', error.response?.data || error.message);
     res.status(500).json({ 
       event: {
         header: {
-          namespace: "Alexa",
+          namespace: "Alexa.Authorization",
           name: "ErrorResponse",
-          messageId: crypto.randomUUID(),
+          messageId: directive?.header?.messageId || 'error',
           payloadVersion: "3"
         },
         payload: {
-          type: "INTERNAL_ERROR",
-          message: error.message
+          type: "ACCEPT_GRANT_FAILED",
+          message: "Failed to exchange grant code"
         }
       }
     });
