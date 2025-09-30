@@ -1057,32 +1057,36 @@ app.get('/auth/alexa/callback', async (req, res) => {
 app.post('/api/alexa/handle-grant', async (req, res) => {
   try {
     const { directive } = req.body;
-    console.log('🔐 Handling AcceptGrant directive:', JSON.stringify(directive, null, 2));
+    console.log('🔐 Handling AcceptGrant directive');
     
     if (directive?.header?.name === 'AcceptGrant') {
       const grantCode = directive.payload.grant.code;
-      const granteeToken = directive.payload.grantee.token;
       
       console.log('🔑 Exchanging grant code for event gateway access...');
       
-      const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', {
+      // Create URL-encoded body (NOT JSON)
+      const params = new URLSearchParams({
         grant_type: 'authorization_code',
         code: grantCode,
         client_id: process.env.LWA_CLIENT_ID,
         client_secret: process.env.LWA_CLIENT_SECRET
-      }, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+      });
+      
+      const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', 
+        params.toString(),  // Send as URL-encoded string
+        { 
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          timeout: 10000
+        }
+      );
       
       const tokens = tokenResponse.data;
       console.log('✅ Grant exchange successful');
       
-      // Store event gateway tokens
-      const storageKey = `alexa_event_${granteeToken}`;
+      // Store tokens
+      const storageKey = 'alexa_main_tokens';
       alexaUserSessions.set(storageKey, tokens.access_token);
       alexaRefreshTokens.set(storageKey, tokens.refresh_token);
-      
-      // Also store as main tokens for backwards compatibility
-      alexaUserSessions.set('alexa_main_tokens', tokens.access_token);
-      alexaRefreshTokens.set('alexa_main_tokens', tokens.refresh_token);
       
       const response = {
         event: {
@@ -1101,7 +1105,7 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
       res.status(400).json({ error: 'Invalid directive' });
     }
   } catch (error) {
-    console.error('Grant handling failed:', error.message);
+    console.error('Grant handling failed:', error.response?.data || error.message);
     res.status(500).json({ 
       event: {
         header: {
@@ -1118,7 +1122,6 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
     });
   }
 });
-
 // ===================== DEBUG ENDPOINTS =====================
 
 app.get('/api/debug/tokens', (req, res) => {
