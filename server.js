@@ -552,24 +552,25 @@ async function sendAlexaChangeReport(endpointId, newState, accessToken) {
 // Trigger contact sensor for Alexa
 async function triggerContactSensor(sensorId, effect) {
   try {
-    console.log(`🎭 Triggering contact sensor: ${sensorId} for effect: ${effect}`);
+     console.log(`🎭 Triggering contact sensor: ${sensorId} for effect: ${effect}`);
     
-    // 🚨 GET THE ACCESS TOKEN (this line was missing!)
-    const storageKey = 'alexa_main_tokens';
+    // Use EVENT_GATEWAY key
+    const storageKey = 'alexa_event_gateway_tokens';  // Changed!
     const accessToken = alexaUserSessions.get(storageKey);
     
+    console.log('🔍 Token being used:', {
+      hasToken: !!accessToken,
+      tokenStart: accessToken ? accessToken.substring(0, 30) : 'NO TOKEN',
+      tokenLength: accessToken ? accessToken.length : 0
+    });
+
     // Check if we have a token
     if (!accessToken) {
       console.warn('⚠️ No access token available for sending change reports');
       return { success: false, message: 'No Alexa connection' };
     }
 
-    console.log('🔍 Token being used:', {
-  hasToken: !!accessToken,
-  tokenStart: accessToken ? accessToken.substring(0, 30) : 'NO TOKEN',
-  tokenLength: accessToken ? accessToken.length : 0
-});
-    
+   
     // Change sensor state to DETECTED
     deviceStates.set(sensorId, "DETECTED");
     console.log(`✅ Sensor ${sensorId} state changed to DETECTED`);
@@ -1070,12 +1071,11 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
       
       console.log('🔑 Exchanging grant code for event gateway access...');
       
-      // Use ALEXA credentials, not LWA credentials!
       const params = new URLSearchParams({
         grant_type: 'authorization_code',
         code: grantCode,
-        client_id: process.env.ALEXA_CLIENT_ID,      // Changed!
-        client_secret: process.env.ALEXA_CLIENT_SECRET  // Changed!
+        client_id: process.env.ALEXA_CLIENT_ID,
+        client_secret: process.env.ALEXA_CLIENT_SECRET
       });
       
       const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', 
@@ -1088,11 +1088,13 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
       
       const tokens = tokenResponse.data;
       console.log('✅ Event Gateway token received!');
+      console.log('📊 Token length:', tokens.access_token.length); // Should be 800+
       
-      // Store tokens
-      const storageKey = 'alexa_main_tokens';
+      // Store with EVENT_GATEWAY key (different from account linking)
+      const storageKey = 'alexa_event_gateway_tokens';  // Changed!
       alexaUserSessions.set(storageKey, tokens.access_token);
       alexaRefreshTokens.set(storageKey, tokens.refresh_token);
+      console.log('✅ Event Gateway tokens stored');
       
       res.json({
         event: {
