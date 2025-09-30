@@ -532,7 +532,8 @@ async function sendAlexaChangeReport(endpointId, newState, accessToken) {
       }
     };
 
-    const response = await axios.post('https://api.amazonalexa.com/v3/events', event, {
+    // CHANGED: Use Europe endpoint
+    const response = await axios.post('https://api.eu.amazonalexa.com/v3/events', event, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
@@ -548,15 +549,19 @@ async function sendAlexaChangeReport(endpointId, newState, accessToken) {
   }
 }
 
-// Trigger contact sensor for Alexa
-// Trigger contact sensor for Alexa
 async function triggerContactSensor(sensorId, effect) {
   try {
-     console.log(`🎭 Triggering contact sensor: ${sensorId} for effect: ${effect}`);
+    console.log(`🎭 Triggering contact sensor: ${sensorId} for effect: ${effect}`);
     
-    // Use EVENT_GATEWAY key
-    const storageKey = 'alexa_event_gateway_tokens';  // Changed!
-    const accessToken = alexaUserSessions.get(storageKey);
+    // Find the Event Gateway token (stored with grantee token as key)
+    let accessToken = null;
+    for (const [key, token] of alexaUserSessions.entries()) {
+      if (key.startsWith('event_gateway_')) {
+        accessToken = token;
+        console.log('🔍 Found Event Gateway token for key:', key.substring(0, 40) + '...');
+        break;
+      }
+    }
     
     console.log('🔍 Token being used:', {
       hasToken: !!accessToken,
@@ -564,13 +569,11 @@ async function triggerContactSensor(sensorId, effect) {
       tokenLength: accessToken ? accessToken.length : 0
     });
 
-    // Check if we have a token
     if (!accessToken) {
-      console.warn('⚠️ No access token available for sending change reports');
-      return { success: false, message: 'No Alexa connection' };
+      console.warn('⚠️ No Event Gateway token available - did AcceptGrant complete?');
+      return { success: false, message: 'No Event Gateway token' };
     }
 
-   
     // Change sensor state to DETECTED
     deviceStates.set(sensorId, "DETECTED");
     console.log(`✅ Sensor ${sensorId} state changed to DETECTED`);
@@ -583,8 +586,58 @@ async function triggerContactSensor(sensorId, effect) {
       try {
         deviceStates.set(sensorId, "NOT_DETECTED");
         console.log(`🔄 Reset sensor: ${sensorId} to NOT_DETECTED`);
-        
-        // Send reset change report
+        await sendAlexaChangeReport(sensorId, "NOT_DETECTED", accessToken);
+      } catch (error) {
+        console.error(`❌ Failed to reset sensor ${sensorId}:`, error.message);
+      }
+    }, 2000);
+    
+    return { success: true, message: `Triggered ${effect} - sensor state changed` };
+  } catch (error) {
+    console.error(`❌ Failed to trigger sensor ${sensorId}:`, error.message);
+    return { success: false, message: error.message };
+  }
+}
+
+// Trigger contact sensor for Alexa
+// Trigger contact sensor for Alexa
+async function triggerContactSensor(sensorId, effect) {
+  try {
+    console.log(`🎭 Triggering contact sensor: ${sensorId} for effect: ${effect}`);
+    
+    // Find the Event Gateway token (stored with grantee token as key)
+    let accessToken = null;
+    for (const [key, token] of alexaUserSessions.entries()) {
+      if (key.startsWith('event_gateway_')) {
+        accessToken = token;
+        console.log('🔍 Found Event Gateway token for key:', key.substring(0, 40) + '...');
+        break;
+      }
+    }
+    
+    console.log('🔍 Token being used:', {
+      hasToken: !!accessToken,
+      tokenStart: accessToken ? accessToken.substring(0, 30) : 'NO TOKEN',
+      tokenLength: accessToken ? accessToken.length : 0
+    });
+
+    if (!accessToken) {
+      console.warn('⚠️ No Event Gateway token available - did AcceptGrant complete?');
+      return { success: false, message: 'No Event Gateway token' };
+    }
+
+    // Change sensor state to DETECTED
+    deviceStates.set(sensorId, "DETECTED");
+    console.log(`✅ Sensor ${sensorId} state changed to DETECTED`);
+    
+    // Send change report to Alexa
+    await sendAlexaChangeReport(sensorId, "DETECTED", accessToken);
+    
+    // Reset sensor state after a short delay
+    setTimeout(async () => {
+      try {
+        deviceStates.set(sensorId, "NOT_DETECTED");
+        console.log(`🔄 Reset sensor: ${sensorId} to NOT_DETECTED`);
         await sendAlexaChangeReport(sensorId, "NOT_DETECTED", accessToken);
       } catch (error) {
         console.error(`❌ Failed to reset sensor ${sensorId}:`, error.message);
@@ -1068,6 +1121,12 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
     
     if (directive?.header?.name === 'AcceptGrant') {
       const grantCode = directive.payload.grant.code;
+      const granteeToken = directive.payload.grantee.token; // USER IDENTIFIER
+      
+      console.log('🔑 Grantee info:', {
+        granteeTokenLength: granteeToken?.length,
+        granteeTokenStart: granteeToken?.substring(0, 30)
+      });
       
       console.log('🔑 Exchanging grant code for event gateway access...');
       
@@ -1076,16 +1135,6 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
         code: grantCode,
         client_id: process.env.ALEXA_CLIENT_ID,
         client_secret: process.env.ALEXA_CLIENT_SECRET
-      });
-
-       
-      // PRINT THE CREDENTIALS BEING USED
-      console.log('🔑 Using credentials:', {
-        alexa_client_id: process.env.ALEXA_CLIENT_ID,
-        alexa_client_id_start: process.env.ALEXA_CLIENT_ID?.substring(0, 30),
-        lwa_client_id: process.env.LWA_CLIENT_ID,
-        lwa_client_id_start: process.env.LWA_CLIENT_ID?.substring(0, 30),
-        are_they_same: process.env.ALEXA_CLIENT_ID === process.env.LWA_CLIENT_ID
       });
       
       const tokenResponse = await axios.post('https://api.amazon.com/auth/o2/token', 
@@ -1097,25 +1146,21 @@ app.post('/api/alexa/handle-grant', async (req, res) => {
       );
       
       const tokens = tokenResponse.data;
+      
       console.log('✅ Event Gateway token received!');
-      console.log('📊 Token length:', tokens.access_token.length); // Should be 800+
-
-      // ADD THIS DETAILED LOGGING
-      console.log('✅ Event Gateway token received!');
-      console.log('📊 Full token response:', {
+      console.log('📊 Token response:', {
         access_token_length: tokens.access_token?.length || 0,
-        access_token_start: tokens.access_token?.substring(0, 50) || 'NONE',
-        access_token_end: tokens.access_token?.substring(tokens.access_token.length - 30) || 'NONE',
         refresh_token_length: tokens.refresh_token?.length || 0,
-        expires_in: tokens.expires_in,
-        token_type: tokens.token_type
+        expires_in: tokens.expires_in
       });
       
-      // Store with EVENT_GATEWAY key (different from account linking)
-      const storageKey = 'alexa_event_gateway_tokens';  // Changed!
+      // Store Event Gateway token using grantee token as key
+      // This associates the Event Gateway token with the specific user
+      const storageKey = `event_gateway_${granteeToken}`;
       alexaUserSessions.set(storageKey, tokens.access_token);
       alexaRefreshTokens.set(storageKey, tokens.refresh_token);
-      console.log('✅ Event Gateway tokens stored');
+      
+      console.log('✅ Event Gateway tokens stored for user');
       
       res.json({
         event: {
