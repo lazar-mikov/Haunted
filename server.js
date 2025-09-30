@@ -601,55 +601,7 @@ async function triggerContactSensor(sensorId, effect) {
 
 // Trigger contact sensor for Alexa
 // Trigger contact sensor for Alexa
-async function triggerContactSensor(sensorId, effect) {
-  try {
-    console.log(`🎭 Triggering contact sensor: ${sensorId} for effect: ${effect}`);
-    
-    // Find the Event Gateway token (stored with grantee token as key)
-    let accessToken = null;
-    for (const [key, token] of alexaUserSessions.entries()) {
-      if (key.startsWith('event_gateway_')) {
-        accessToken = token;
-        console.log('🔍 Found Event Gateway token for key:', key.substring(0, 40) + '...');
-        break;
-      }
-    }
-    
-    console.log('🔍 Token being used:', {
-      hasToken: !!accessToken,
-      tokenStart: accessToken ? accessToken.substring(0, 30) : 'NO TOKEN',
-      tokenLength: accessToken ? accessToken.length : 0
-    });
 
-    if (!accessToken) {
-      console.warn('⚠️ No Event Gateway token available - did AcceptGrant complete?');
-      return { success: false, message: 'No Event Gateway token' };
-    }
-
-    // Change sensor state to DETECTED
-    deviceStates.set(sensorId, "DETECTED");
-    console.log(`✅ Sensor ${sensorId} state changed to DETECTED`);
-    
-    // Send change report to Alexa
-    await sendAlexaChangeReport(sensorId, "DETECTED", accessToken);
-    
-    // Reset sensor state after a short delay
-    setTimeout(async () => {
-      try {
-        deviceStates.set(sensorId, "NOT_DETECTED");
-        console.log(`🔄 Reset sensor: ${sensorId} to NOT_DETECTED`);
-        await sendAlexaChangeReport(sensorId, "NOT_DETECTED", accessToken);
-      } catch (error) {
-        console.error(`❌ Failed to reset sensor ${sensorId}:`, error.message);
-      }
-    }, 2000);
-    
-    return { success: true, message: `Triggered ${effect} - sensor state changed` };
-  } catch (error) {
-    console.error(`❌ Failed to trigger sensor ${sensorId}:`, error.message);
-    return { success: false, message: error.message };
-  }
-}
 
 // ===================== UNIFIED TRIGGER ENDPOINT =====================
 // Controls BOTH lights and Alexa sensors
