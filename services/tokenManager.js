@@ -2,6 +2,7 @@ import Redis from 'ioredis';
 
 export class TokenManager {
   constructor() {
+    this.quotaExceeded = false;
     if (process.env.REDIS_URL) {
       this.initRedis();
     } else {
@@ -11,35 +12,44 @@ export class TokenManager {
   }
 
   initRedis() {
+    if (this.quotaExceeded) {
+      console.warn('Redis quota exceeded - staying disconnected');
+      return;
+    }
+
     try {
       this.redis = new Redis(process.env.REDIS_URL, {
         retryStrategy: (times) => {
-          const delay = Math.min(times * 50, 2000);
-          return delay;
+          if (this.quotaExceeded) return null; // Stop retrying
+          if (times > 5) return null; // Give up after 5 attempts
+          return Math.min(times * 1000, 3000);
         },
         reconnectOnError: (err) => {
-          console.log('Redis reconnecting due to:', err.message);
+          if (err.message.includes('max requests limit exceeded')) {
+            this.quotaExceeded = true;
+            return false; // Don't reconnect on quota errors
+          }
           return true;
         },
-        maxRetriesPerRequest: 3,
-        enableReadyCheck: true,
-        lazyConnect: false
+        maxRetriesPerRequest: 1,
+        enableReadyCheck: true
       });
       
       this.redis.on('error', (err) => {
-        console.error('Redis error:', err.message);
+        if (err.message.includes('max requests limit exceeded')) {
+          this.quotaExceeded = true;
+          console.error('❌ Redis quota exceeded - disabling Redis');
+          if (this.redis) {
+            this.redis.disconnect();
+            this.redis = null;
+          }
+        } else {
+          console.error('Redis error:', err.message);
+        }
       });
       
       this.redis.on('connect', () => {
         console.log('✅ Redis connected');
-      });
-
-      this.redis.on('close', () => {
-        console.warn('⚠️ Redis connection closed');
-      });
-
-      this.redis.on('reconnecting', () => {
-        console.log('🔄 Redis reconnecting...');
       });
       
     } catch (error) {
@@ -48,62 +58,52 @@ export class TokenManager {
     }
   }
 
-  async ensureConnection() {
-    if (!this.redis) return false;
-    
-    try {
-      await this.redis.ping();
-      return true;
-    } catch (error) {
-      console.warn('Redis ping failed, reinitializing...');
-      this.initRedis();
-      return false;
-    }
-  }
-
   async storeEventGatewayToken(granteeToken, accessToken, refreshToken) {
-    const key = `event_gateway_${granteeToken}`;
-    
-    if (!this.redis) {
+    if (!this.redis || this.quotaExceeded) {
       console.warn('⚠️ Redis not available - tokens not persisted');
       return;
     }
 
     try {
-      await this.ensureConnection();
-      await this.redis.set(`token:${key}`, accessToken, 'EX', 3600);
-      await this.redis.set(`refresh:${key}`, refreshToken);
-      console.log('✅ Event Gateway tokens stored in Redis');
+      await this.redis.set(`token:event_gateway_${granteeToken}`, accessToken, 'EX', 3600);
+      await this.redis.set(`refresh:event_gateway_${granteeToken}`, refreshToken);
+      console.log('✅ Tokens stored in Redis');
     } catch (error) {
+      if (error.message.includes('max requests limit exceeded')) {
+        this.quotaExceeded = true;
+        this.redis = null;
+      }
       console.error('Failed to store in Redis:', error.message);
     }
   }
 
   async getEventGatewayToken() {
-    if (!this.redis) return null;
+    if (!this.redis || this.quotaExceeded) return null;
     
     try {
-      await this.ensureConnection();
       const keys = await this.redis.keys('token:event_gateway_*');
       if (keys.length === 0) return null;
       return await this.redis.get(keys[0]);
     } catch (error) {
-      console.error('Failed to read from Redis:', error.message);
+      if (error.message.includes('max requests limit exceeded')) {
+        this.quotaExceeded = true;
+        this.redis = null;
+      }
       return null;
     }
   }
 
   async getAllTokenInfo() {
-    if (!this.redis) {
+    if (!this.redis || this.quotaExceeded) {
       return { 
         totalSessions: 0, 
         hasEventGatewayToken: false,
-        redisConnected: false 
+        redisConnected: false,
+        quotaExceeded: this.quotaExceeded
       };
     }
     
     try {
-      await this.ensureConnection();
       const tokenKeys = await this.redis.keys('token:event_gateway_*');
       return {
         totalSessions: tokenKeys.length,
