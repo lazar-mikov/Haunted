@@ -1,8 +1,7 @@
 // ——— basic UI hooks ———
 const mainVideo = document.getElementById("mainVideo");
-const statusBox = document.getElementById("status");
-const unmuteBtn = document.getElementById("unmute");
-const restartBtn = document.getElementById("restart");
+const restartBtn = document.getElementById("restartBtn");  // ✅ Fixed
+const unmuteBtn = document.getElementById("unmuteBtn");    // ✅ Fixed
 
 // ——— autoplay if we arrived from /connect?state=/watch?autoplay=1 ———
 const params = new URLSearchParams(location.search);
@@ -15,23 +14,17 @@ if (shouldAutoplay && mainVideo) {
 
 // ——— define cue times ———
 const schedule = [
-
-// Flicker sequence at 5 seconds
-  { t: 5, event: "haunted-off" },
-
-  { t: 5, event: "haunted-on" },
-  { t: 6, event: "haunted-off" },
-  { t: 7, event: "haunted-on" },
-  { t: 8, event: "haunted-off" },
-  { t: 9, event: "haunted-on" },
-  { t: 10, event: "haunted-off" },
-
-
-
-  { t: 5,  event: "haunted-off" },   // Lights off (blackout)
-  { t: 8,  event: "haunted-on" },    // Lights back on
-  { t: 12, event: "flash-red" },     // Red flash effect
-  { t: 15, event: "haunted-on" }     // Lights on again
+  // Flicker sequence at 5 seconds (cleaned up duplicates)
+  { t: 5.0, event: "haunted-on" },
+  { t: 5.3, event: "haunted-off" },
+  { t: 5.6, event: "haunted-on" },
+  { t: 5.9, event: "haunted-off" },
+  { t: 6.2, event: "haunted-on" },
+  { t: 6.5, event: "haunted-off" },
+  
+  // Other effects
+  { t: 20, event: "flash-red" },
+  { t: 31, event: "haunted-on" }
 ];
 
 // ——— convert to ms ———
@@ -45,6 +38,7 @@ const EARLY_MS = 1200;
 async function fireEffect(effect) {
   try {
     console.log(`🎬 Firing effect: ${effect}`);
+    console.log(`⏰ Time: ${new Date().toISOString()}`);
     
     const response = await fetch("/api/trigger-direct", {
       method: "POST", 
@@ -53,25 +47,25 @@ async function fireEffect(effect) {
       body: JSON.stringify({ effect })
     });
     
+    console.log(`📡 Response status: ${response.status}`);
     const data = await response.json();
+    console.log(`📦 Response data:`, data);
     
     if (data.success) {
-      if (statusBox) statusBox.textContent = `✅ ${effect} triggered`;
-      console.log("✅ Effect triggered:", data);
+      console.log(`✅ Effect triggered successfully:`, data);
     } else {
-      if (statusBox) statusBox.textContent = `❌ ${effect} failed`;
-      console.error("❌ Effect failed:", data);
+      console.error(`❌ Effect failed:`, data);
     }
     
   } catch (e) {
-    if (statusBox) statusBox.textContent = `❌ ${effect} error`;
-    console.error("❌ Effect error:", e);
+    console.error(`❌ Effect error for ${effect}:`, e);
+    console.error(`❌ Error stack:`, e.stack);
   }
 }
 
 // Console test function
 window.testEffect = async (effect = "haunted-off") => {
-  console.log(`Testing ${effect} effect...`);
+  console.log(`🧪 Testing ${effect} effect...`);
   await fireEffect(effect);
 };
 
@@ -84,8 +78,8 @@ if (mainVideo) {
     for (const c of cues) {
       if (!c.fired && nowMs >= (c.t - EARLY_MS)) {
         c.fired = true;
+        console.log(`⚡ CUE FIRED: ${c.effect} at ${c.t/1000}s (actual video time: ${nowMs/1000}s)`);
         fireEffect(c.effect);
-        console.log(`🎬 Triggered ${c.effect} at ${c.t/1000}s (actual: ${nowMs/1000}s)`);
       }
     }
     rafId = requestAnimationFrame(tick);
@@ -95,6 +89,8 @@ if (mainVideo) {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(tick);
     console.log("▶️ Video started - cue system active");
+    console.log(`📋 Total cues loaded: ${cues.length}`);
+    console.log(`📋 Cue schedule:`, cues.map(c => `${c.t/1000}s: ${c.effect}`));
   });
 
   mainVideo.addEventListener("pause", () => {
@@ -105,25 +101,35 @@ if (mainVideo) {
 
   mainVideo.addEventListener("seeking", () => {
     const nowMs = mainVideo.currentTime * 1000;
+    console.log(`⏩ Seeking to ${nowMs/1000}s`);
     for (const c of cues) {
       c.fired = nowMs >= (c.t - EARLY_MS);
     }
+    console.log(`🔄 Cues reset based on seek position`);
   });
 
   mainVideo.addEventListener("ended", () => {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
     for (const c of cues) c.fired = false;
-    console.log("⏹️ Video ended - cues reset");
+    console.log("⏹️ Video ended - all cues reset");
   });
+
+  console.log("✅ Video element found and cue system initialized");
+} else {
+  console.error("❌ mainVideo element not found!");
 }
 
 // ——— UI buttons ———
 if (unmuteBtn && mainVideo) {
   unmuteBtn.onclick = () => { 
     mainVideo.muted = false; 
-    mainVideo.volume = 1.0; 
+    mainVideo.volume = 1.0;
+    console.log("🔊 Video unmuted");
   };
+  console.log("✅ Unmute button initialized");
+} else {
+  console.error("❌ Unmute button or video not found");
 }
 
 if (restartBtn && mainVideo) {
@@ -131,5 +137,11 @@ if (restartBtn && mainVideo) {
     for (const c of cues) c.fired = false;
     mainVideo.currentTime = 0;
     mainVideo.play().catch(()=>{});
+    console.log("↻ Video restarted - all cues reset");
   };
+  console.log("✅ Restart button initialized");
+} else {
+  console.error("❌ Restart button or video not found");
 }
+
+console.log("🎃 Haunted app.js loaded successfully");
