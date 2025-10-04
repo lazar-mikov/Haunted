@@ -15,6 +15,17 @@ if (shouldAutoplay && film) {
 
 // ——— define cue times ———
 const schedule = [
+
+// Flicker sequence at 5 seconds
+  { t: 5.0, event: "haunted-on" },
+  { t: 5.2, event: "haunted-off" },
+  { t: 5.4, event: "haunted-on" },
+  { t: 5.6, event: "haunted-off" },
+  { t: 5.8, event: "haunted-on" },
+  { t: 6.0, event: "haunted-off" },
+
+
+
   { t: 5,  event: "haunted-off" },   // Lights off (blackout)
   { t: 8,  event: "haunted-on" },    // Lights back on
   { t: 12, event: "flash-red" },     // Red flash effect
