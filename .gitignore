@@ -1,0 +1,9 @@
+# Remove the cached file from git
+git rm --cached public/video/film.mp4
+
+# Commit the changes
+git add .gitignore
+git commit -m "Add .gitignore and remove large video file"
+
+# Push to GitHub
+git push
