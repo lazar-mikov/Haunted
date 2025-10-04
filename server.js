@@ -16,10 +16,6 @@ const app = express();
 const tokenManager = new TokenManager();
 const deviceStates = new Map();
 
-// Get directory paths first
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 // Initialize sensor states
 Object.values(SENSOR_CONFIG).forEach(config => {
   deviceStates.set(config.endpointId, "NOT_DETECTED");
@@ -34,9 +30,7 @@ app.use(session({
   saveUninitialized: false,
   cookie: { httpOnly: true, sameSite: "lax", maxAge: 24 * 60 * 60 * 1000 }
 }));
-
-// FIXED: Correct path to public folder
-app.use(express.static(path.join(__dirname, "..", "public")));
+app.use(express.static("public"));
 
 // Routes
 app.use('/alexa', createAlexaRoutes(tokenManager, deviceStates));
@@ -44,8 +38,10 @@ app.use('/api', createTriggerRoutes(tokenManager, deviceStates));
 app.use('/api/debug', createDebugRoutes(tokenManager));
 
 // Watch page
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 app.get("/watch", (req, res) => {
-  const filePath = path.join(__dirname, "..", "public", "watch.html");
+  const filePath = path.join(__dirname, "public", "watch.html");
   res.sendFile(filePath, err => {
     if (err) {
       res.status(200).type("html").send(`<h1>Haunted Demo</h1>`);
@@ -66,7 +62,6 @@ process.on('unhandledRejection', (reason) => {
 const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, () => {
   console.log(`Haunted House server running on port ${PORT}`);
-  console.log(`Serving static files from: ${path.join(__dirname, "..", "public")}`);
   console.log(`Contact sensors ready`);
 }).on('error', (err) => {
   console.error(`Server error:`, err);
