@@ -1,7 +1,5 @@
-// ——— basic UI hooks ———
-const mainVideo = document.getElementById("mainVideo");
-const restartBtn = document.getElementById("restartBtn");  // ✅ Fixed
-const unmuteBtn = document.getElementById("unmuteBtn");    // ✅ Fixed
+
+
 
 // ——— autoplay if we arrived from /connect?state=/watch?autoplay=1 ———
 const params = new URLSearchParams(location.search);
