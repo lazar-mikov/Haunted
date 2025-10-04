@@ -1,5 +1,5 @@
 // ——— basic UI hooks ———
-const film = document.getElementById("film");
+const mainVideo = document.getElementById("mainVideo");
 const statusBox = document.getElementById("status");
 const unmuteBtn = document.getElementById("unmute");
 const restartBtn = document.getElementById("restart");
@@ -7,9 +7,9 @@ const restartBtn = document.getElementById("restart");
 // ——— autoplay if we arrived from /connect?state=/watch?autoplay=1 ———
 const params = new URLSearchParams(location.search);
 const shouldAutoplay = params.get("autoplay") === "1";
-if (shouldAutoplay && film) {
-  film.addEventListener("loadedmetadata", async () => {
-    try { await film.play(); } catch {}
+if (shouldAutoplay && mainVideo) {
+  mainVideo.addEventListener("loadedmetadata", async () => {
+    try { await mainVideo.play(); } catch {}
   });
 }
 
@@ -76,11 +76,11 @@ window.testEffect = async (effect = "haunted-off") => {
 };
 
 // ——— high-precision scheduler using requestAnimationFrame ———
-if (film) {
+if (mainVideo) {
   let rafId = null;
 
   function tick() {
-    const nowMs = film.currentTime * 1000;
+    const nowMs = mainVideo.currentTime * 1000;
     for (const c of cues) {
       if (!c.fired && nowMs >= (c.t - EARLY_MS)) {
         c.fired = true;
@@ -91,26 +91,26 @@ if (film) {
     rafId = requestAnimationFrame(tick);
   }
 
-  film.addEventListener("play", () => {
+  mainVideo.addEventListener("play", () => {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(tick);
     console.log("▶️ Video started - cue system active");
   });
 
-  film.addEventListener("pause", () => {
+  mainVideo.addEventListener("pause", () => {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
     console.log("⏸️ Video paused - cue system paused");
   });
 
-  film.addEventListener("seeking", () => {
-    const nowMs = film.currentTime * 1000;
+  mainVideo.addEventListener("seeking", () => {
+    const nowMs = mainVideo.currentTime * 1000;
     for (const c of cues) {
       c.fired = nowMs >= (c.t - EARLY_MS);
     }
   });
 
-  film.addEventListener("ended", () => {
+  mainVideo.addEventListener("ended", () => {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
     for (const c of cues) c.fired = false;
@@ -119,17 +119,17 @@ if (film) {
 }
 
 // ——— UI buttons ———
-if (unmuteBtn && film) {
+if (unmuteBtn && mainVideo) {
   unmuteBtn.onclick = () => { 
-    film.muted = false; 
-    film.volume = 1.0; 
+    mainVideo.muted = false; 
+    mainVideo.volume = 1.0; 
   };
 }
 
-if (restartBtn && film) {
+if (restartBtn && mainVideo) {
   restartBtn.onclick = () => {
     for (const c of cues) c.fired = false;
-    film.currentTime = 0;
-    film.play().catch(()=>{});
+    mainVideo.currentTime = 0;
+    mainVideo.play().catch(()=>{});
   };
 }
