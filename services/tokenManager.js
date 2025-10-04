@@ -3,12 +3,12 @@ import Redis from 'ioredis';
 export class TokenManager {
   constructor() {
     this.quotaExceeded = false;
-    this.memoryTokens = new Map(); // Fallback storage
+    this.memoryTokens = new Map();
     
     if (process.env.REDIS_URL) {
       this.initRedis();
     } else {
-      console.warn('⚠️ REDIS_URL not set - using in-memory storage (lost on restart)');
+      console.warn('REDIS_URL not set - using in-memory storage');
       this.redis = null;
     }
   }
@@ -34,7 +34,7 @@ export class TokenManager {
       this.redis.on('error', (err) => {
         if (err.message.includes('max requests limit exceeded')) {
           this.quotaExceeded = true;
-          console.error('❌ Redis quota exceeded - switching to in-memory storage');
+          console.error('Redis quota exceeded - switching to in-memory storage');
           if (this.redis) {
             this.redis.disconnect();
             this.redis = null;
@@ -43,7 +43,7 @@ export class TokenManager {
       });
       
       this.redis.on('connect', () => {
-        console.log('✅ Redis connected');
+        console.log('Redis connected');
       });
       
     } catch (error) {
@@ -55,31 +55,32 @@ export class TokenManager {
   async storeEventGatewayToken(granteeToken, accessToken, refreshToken) {
     const key = `event_gateway_${granteeToken}`;
     
-    // Always store in memory as backup
+    // Always store in memory
     this.memoryTokens.set(`token:${key}`, accessToken);
     this.memoryTokens.set(`refresh:${key}`, refreshToken);
     
     if (!this.redis || this.quotaExceeded) {
-      console.warn('⚠️ Tokens stored in memory only (will be lost on restart)');
+      console.warn('Tokens stored in memory only (lost on restart)');
       return;
     }
 
     try {
       await this.redis.set(`token:${key}`, accessToken, 'EX', 3600);
       await this.redis.set(`refresh:${key}`, refreshToken);
-      console.log('✅ Tokens stored in Redis + memory');
+      console.log('Tokens stored in Redis + memory');
     } catch (error) {
       if (error.message.includes('max requests limit exceeded')) {
         this.quotaExceeded = true;
         this.redis = null;
       }
-      console.log('⚠️ Redis failed, tokens in memory only');
+      console.log('Redis failed, tokens in memory only');
     }
   }
 
   async getEventGatewayToken() {
-    // Try memory first (faster)
-    const memoryKeys = Array.from(this.memoryTokens.keys()).filter(k => k.startsWith('token:event_gateway_'));
+    // Try memory first
+    const memoryKeys = Array.from(this.memoryTokens.keys())
+      .filter(k => k.startsWith('token:event_gateway_'));
     if (memoryKeys.length > 0) {
       return this.memoryTokens.get(memoryKeys[0]);
     }
@@ -92,7 +93,6 @@ export class TokenManager {
       if (keys.length === 0) return null;
       const token = await this.redis.get(keys[0]);
       
-      // Cache in memory for next time
       if (token) this.memoryTokens.set(keys[0], token);
       
       return token;
@@ -101,10 +101,44 @@ export class TokenManager {
     }
   }
 
+  async getAllEventGatewayTokens() {
+    const tokens = [];
+    
+    // Get from memory
+    const memoryKeys = Array.from(this.memoryTokens.keys())
+      .filter(k => k.startsWith('token:event_gateway_'));
+    
+    for (const key of memoryKeys) {
+      const token = this.memoryTokens.get(key);
+      if (token) tokens.push(token);
+    }
+    
+    // Also try Redis if available
+    if (this.redis && !this.quotaExceeded) {
+      try {
+        const redisKeys = await this.redis.keys('token:event_gateway_*');
+        for (const key of redisKeys) {
+          const token = await this.redis.get(key);
+          if (token && !tokens.includes(token)) {
+            tokens.push(token);
+          }
+        }
+      } catch (error) {
+        // Redis failed, use memory tokens only
+      }
+    }
+    
+    console.log(`Retrieved ${tokens.length} user tokens for broadcast`);
+    return tokens;
+  }
+
   async getAllTokenInfo() {
+    const memoryCount = Array.from(this.memoryTokens.keys())
+      .filter(k => k.startsWith('token:event_gateway_')).length;
+    
     return {
-      totalSessions: this.memoryTokens.size / 2, // Each session has 2 entries
-      hasEventGatewayToken: this.getEventGatewayToken() !== null,
+      totalSessions: memoryCount,
+      hasEventGatewayToken: memoryCount > 0,
       redisConnected: !!this.redis && !this.quotaExceeded,
       usingMemory: this.memoryTokens.size > 0
     };

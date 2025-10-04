@@ -7,27 +7,50 @@ export function createTriggerRoutes(tokenManager, deviceStates) {
   const router = express.Router();
 
   async function triggerContactSensor(sensorId, effect) {
-    const accessToken = await tokenManager.getEventGatewayToken();
+    // Get ALL user tokens
+    const allTokens = await tokenManager.getAllEventGatewayTokens();
     
-    if (!accessToken) {
-      console.warn('No Event Gateway token available');
-      return { success: false, message: 'No Event Gateway token' };
+    if (allTokens.length === 0) {
+      console.warn('No Event Gateway tokens available');
+      return { success: false, message: 'No users linked' };
     }
 
     try {
-      deviceStates.set(sensorId, "DETECTED");
-      await sendAlexaChangeReport(sensorId, "DETECTED", accessToken);
+      console.log(`Broadcasting ${effect} to ${allTokens.length} users`);
       
-      setTimeout(async () => {
+      // Send change reports to ALL users in parallel
+      const reportPromises = allTokens.map(async (token) => {
         try {
-          deviceStates.set(sensorId, "NOT_DETECTED");
-          await sendAlexaChangeReport(sensorId, "NOT_DETECTED", accessToken);
+          deviceStates.set(sensorId, "DETECTED");
+          await sendAlexaChangeReport(sensorId, "DETECTED", token);
+          
+          setTimeout(async () => {
+            try {
+              deviceStates.set(sensorId, "NOT_DETECTED");
+              await sendAlexaChangeReport(sensorId, "NOT_DETECTED", token);
+            } catch (error) {
+              console.error(`Failed to reset sensor for user:`, error.message);
+            }
+          }, 2000);
+          
+          return { success: true };
         } catch (error) {
-          console.error(`Failed to reset sensor ${sensorId}:`, error.message);
+          console.error(`Failed to trigger sensor for user:`, error.message);
+          return { success: false, error: error.message };
         }
-      }, 2000);
-      
-      return { success: true, message: `Triggered ${effect}` };
+      });
+
+      const results = await Promise.all(reportPromises);
+      const successCount = results.filter(r => r.success).length;
+
+      console.log(`Triggered for ${successCount}/${allTokens.length} users`);
+
+      return { 
+        success: successCount > 0, 
+        message: `Triggered ${effect} for ${successCount}/${allTokens.length} users`,
+        usersTriggered: successCount,
+        totalUsers: allTokens.length
+      };
     } catch (error) {
       return { success: false, message: error.message };
     }
@@ -65,5 +88,3 @@ export function createTriggerRoutes(tokenManager, deviceStates) {
 
   return router;
 }
-
-//test
