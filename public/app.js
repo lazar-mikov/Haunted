@@ -17,12 +17,14 @@ if (shouldAutoplay && film) {
 const schedule = [
 
 // Flicker sequence at 5 seconds
-  { t: 5.0, event: "haunted-on" },
-  { t: 5.2, event: "haunted-off" },
-  { t: 5.4, event: "haunted-on" },
-  { t: 5.6, event: "haunted-off" },
-  { t: 5.8, event: "haunted-on" },
-  { t: 6.0, event: "haunted-off" },
+  { t: 5, event: "haunted-off" },
+
+  { t: 5, event: "haunted-on" },
+  { t: 6, event: "haunted-off" },
+  { t: 7, event: "haunted-on" },
+  { t: 8, event: "haunted-off" },
+  { t: 9, event: "haunted-on" },
+  { t: 10, event: "haunted-off" },
 
 
 
