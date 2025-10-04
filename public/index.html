@@ -2,582 +2,790 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Haunted Demo — Video Experience</title>
+    <title>Haunted Experience</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
       body {
-        font-family: system-ui, sans-serif;
-        display: flex; flex-direction: column;
-        align-items: center; justify-content: center;
-        min-height: 100vh; background: #000; color: #fff;
-        padding: 20px;
-      }
-      button {
-        font-size: 1.2rem;
-        padding: 1rem 1.4rem;
-        margin: 10px;
-        border-radius: 8px;
-        border: none;
-        cursor: pointer;
-        background: #c00; color: #fff;
-      }
-      button:hover { background: #e33; }
-      #log { 
-        margin-top: 1.5rem; 
-        font-family: monospace; 
-        white-space: pre-wrap;
-        background: #222;
-        padding: 10px;
-        border-radius: 5px;
-        max-width: 500px;
-      }
-      video {
-        width: 100%;
-        max-width: 800px;
-        margin: 20px 0;
-        border: 2px solid #333;
-        border-radius: 8px;
-      }
-      .controls {
-        display: flex;
-        gap: 10px;
-        margin: 10px 0;
-      }
-      .cue-points {
-        margin: 15px 0;
-        color: #aaa;
-        font-size: 0.9rem;
-        text-align: center;
-      }
-
-      .light-controls {
-        margin: 20px 0;
-        padding: 15px;
-        border: 1px solid #333;
-        border-radius: 8px;
-        background: #111;
-        text-align: center;
-      }
-
-      .light-controls h3 {
-        margin: 0 0 10px 0;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        overflow: hidden;
+        background: #000;
         color: #fff;
       }
 
-      #light-status {
-        font-family: monospace;
-        font-size: 0.9rem;
-        padding: 5px;
+      /* ===== LANDING PAGE ===== */
+      .landing-page {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+        transition: opacity 0.5s;
       }
 
-      /* Voice Monkey Section Styles */
-      .voice-monkey-section {
-        margin: 30px 0;
+      .landing-page.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .teaser-video-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      #teaserVideo {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .teaser-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.7) 100%);
+      }
+
+      .landing-content {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 2;
+      }
+
+      .landing-title {
+        font-size: clamp(3rem, 12vw, 7rem);
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.15em;
+        text-shadow: 0 0 50px rgba(139, 0, 0, 0.9), 0 0 100px rgba(139, 0, 0, 0.6);
+        animation: flicker 3s infinite alternate;
+        margin-bottom: 3rem;
+      }
+
+      @keyframes flicker {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.93; }
+      }
+
+      .begin-button {
+        background: linear-gradient(135deg, #8B0000, #DC143C);
+        border: 3px solid rgba(255, 255, 255, 0.4);
+        color: #fff;
+        font-size: 1.8rem;
+        font-weight: 700;
+        padding: 1.8rem 5rem;
+        border-radius: 60px;
+        cursor: pointer;
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        transition: all 0.3s;
+        box-shadow: 0 15px 50px rgba(139, 0, 0, 0.5);
+      }
+
+      .begin-button:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 60px rgba(139, 0, 0, 0.7);
+      }
+
+      /* ===== WIZARD MODAL ===== */
+      .wizard-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.95);
+        z-index: 100;
+        display: none;
+        align-items: center;
+        justify-content: center;
         padding: 20px;
-        border: 2px solid #9b59b6;
-        border-radius: 10px;
-        background: linear-gradient(135deg, #1a1a2e, #0f0f1e);
+        animation: fadeIn 0.3s;
+      }
+
+      .wizard-modal.active {
+        display: flex;
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
+      .wizard-container {
         max-width: 600px;
         width: 100%;
+        background: rgba(20, 20, 20, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        overflow: hidden;
+        animation: slideUp 0.4s;
       }
 
-      .voice-monkey-section h2 {
-        color: #9b59b6;
-        margin-bottom: 20px;
+      @keyframes slideUp {
+        from { transform: translateY(50px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+
+      .progress-bar {
+        height: 6px;
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #8B0000, #DC143C);
+        transition: width 0.4s;
+        box-shadow: 0 0 20px rgba(220, 20, 60, 0.5);
+      }
+
+      .wizard-header {
+        padding: 2rem 2.5rem 1rem;
         text-align: center;
       }
 
-      .setup-steps {
-        background: #0a0a0a;
-        padding: 20px;
-        border-radius: 8px;
-        margin: 20px 0;
+      .step-counter {
+        font-size: 0.9rem;
+        color: #DC143C;
+        font-weight: 700;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        margin-bottom: 0.5rem;
       }
 
-      .setup-steps h3 {
-        color: #f39c12;
-        margin-bottom: 15px;
+      .step-title {
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: #fff;
+      }
+
+      .wizard-content {
+        padding: 1.5rem 2.5rem 2rem;
+        min-height: 320px;
       }
 
       .step {
-        background: #1a1a1a;
-        padding: 15px;
-        margin: 10px 0;
-        border-left: 4px solid #9b59b6;
-        border-radius: 5px;
+        display: none;
       }
 
-      .step-number {
-        display: inline-block;
-        width: 30px;
-        height: 30px;
-        background: #9b59b6;
-        color: white;
-        text-align: center;
-        line-height: 30px;
-        border-radius: 50%;
-        margin-right: 10px;
+      .step.active {
+        display: block;
+        animation: stepFadeIn 0.4s;
+      }
+
+      @keyframes stepFadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .instruction-list {
+        list-style: none;
+        margin: 1.5rem 0;
+      }
+
+      .instruction-list li {
+        padding: 0.8rem 0 0.8rem 2rem;
+        position: relative;
+        color: rgba(255, 255, 255, 0.85);
+        line-height: 1.6;
+      }
+
+      .instruction-list li::before {
+        content: '→';
+        position: absolute;
+        left: 0;
+        color: #DC143C;
         font-weight: bold;
       }
 
-      .monkey-name {
-        font-family: 'Courier New', monospace;
-        background: #2c3e50;
-        color: #f39c12;
-        padding: 5px 10px;
-        border-radius: 4px;
-        display: inline-block;
-        margin: 5px 0;
-        font-size: 1.1rem;
+      .sensor-grid {
+        display: grid;
+        gap: 1rem;
+        margin: 1.5rem 0;
       }
 
-      .copy-btn {
-        background: #27ae60;
-        color: white;
-        padding: 5px 15px;
-        border: none;
-        border-radius: 4px;
-        margin-left: 10px;
-        cursor: pointer;
-        font-size: 0.9rem;
+      .sensor-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 1.2rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
       }
 
-      .copy-btn:hover {
-        background: #2ecc71;
-      }
-
-      .copy-btn.copied {
-        background: #95a5a6;
-      }
-
-      .test-section {
-        background: #1a1a1a;
-        padding: 15px;
-        border-radius: 8px;
-        margin-top: 20px;
-        text-align: center;
-      }
-
-      .test-btn {
-        background: #e74c3c;
-        margin: 5px;
-        padding: 12px 24px;
-      }
-
-      .test-btn:hover {
-        background: #c0392b;
-      }
-
-      .status-indicator {
-        display: inline-block;
-        width: 10px;
-        height: 10px;
+      .sensor-icon {
+        font-size: 2.5rem;
+        width: 60px;
+        height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.05);
         border-radius: 50%;
-        margin-left: 10px;
-        background: #7f8c8d;
       }
 
-      .status-indicator.ready {
-        background: #2ecc71;
-        animation: pulse 2s infinite;
+      .sensor-name {
+        font-size: 1.2rem;
+        font-weight: 700;
       }
 
-      @keyframes pulse {
-        0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
-        70% { box-shadow: 0 0 0 10px rgba(46, 204, 113, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
+      .info-box {
+        background: rgba(220, 20, 60, 0.1);
+        border-left: 4px solid #DC143C;
+        padding: 1.2rem;
+        border-radius: 8px;
+        margin: 1.5rem 0;
+        line-height: 1.6;
       }
 
-      .countdown-timer {
-        font-size: 2rem;
-        color: #e74c3c;
+      .info-box strong {
+        color: #DC143C;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .example {
+        font-style: italic;
+        color: rgba(255, 255, 255, 0.7);
+        margin-top: 0.5rem;
+        font-size: 0.95rem;
+      }
+
+      .success-icon {
+        font-size: 5rem;
         text-align: center;
-        margin: 20px 0;
-        font-family: 'Courier New', monospace;
+        margin: 1rem 0;
+        animation: bounceIn 0.6s;
+      }
+
+      @keyframes bounceIn {
+        0% { transform: scale(0); }
+        50% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+      }
+
+      .success-message {
+        text-align: center;
+        font-size: 1.1rem;
+        line-height: 1.8;
+        color: rgba(255, 255, 255, 0.9);
+        margin: 1.5rem 0;
+      }
+
+      .wizard-nav {
+        padding: 1.5rem 2.5rem 2rem;
+        display: flex;
+        gap: 1rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .nav-btn {
+        flex: 1;
+        padding: 1rem 2rem;
+        border: none;
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.3s;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .btn-back {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      .btn-back:hover {
+        background: rgba(255, 255, 255, 0.15);
+      }
+
+      .btn-back:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
+
+      .btn-next {
+        background: linear-gradient(135deg, #8B0000, #DC143C);
+        color: #fff;
+        box-shadow: 0 5px 20px rgba(220, 20, 60, 0.3);
+      }
+
+      .btn-next:hover {
+        box-shadow: 0 7px 25px rgba(220, 20, 60, 0.5);
+      }
+
+      .btn-complete {
+        background: linear-gradient(135deg, #228B22, #32CD32);
+      }
+
+      /* ===== MAIN EXPERIENCE ===== */
+      .main-experience {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 50;
+        display: none;
+      }
+
+      .main-experience.active {
+        display: block;
+      }
+
+      .main-video-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      #mainVideo {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .main-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.8) 100%);
+        transition: opacity 0.8s;
+      }
+
+      .main-overlay.fade {
+        opacity: 0;
+      }
+
+      .play-content {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 2;
+        transition: opacity 0.8s;
+      }
+
+      .play-content.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .play-title {
+        font-size: clamp(3rem, 10vw, 6rem);
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        text-shadow: 0 0 40px rgba(139, 0, 0, 0.9);
+        margin-bottom: 3rem;
+      }
+
+      .play-button {
+        background: linear-gradient(135deg, #8B0000, #DC143C);
+        border: 3px solid rgba(255, 255, 255, 0.4);
+        color: #fff;
+        font-size: 1.8rem;
+        font-weight: 700;
+        padding: 1.8rem 5rem;
+        border-radius: 60px;
+        cursor: pointer;
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        transition: all 0.3s;
+        box-shadow: 0 15px 50px rgba(139, 0, 0, 0.5);
+      }
+
+      .play-button:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 60px rgba(139, 0, 0, 0.7);
+      }
+
+      .controls-bar {
+        position: fixed;
+        bottom: -100px;
+        left: 0;
+        width: 100%;
+        background: rgba(0, 0, 0, 0.85);
+        backdrop-filter: blur(15px);
+        padding: 1.5rem 2rem;
+        z-index: 60;
+        transition: bottom 0.4s;
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+      }
+
+      .controls-bar.visible {
+        bottom: 0;
+      }
+
+      .control-btn {
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: #fff;
+        padding: 0.9rem 1.8rem;
+        border-radius: 30px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.3s;
+      }
+
+      .control-btn:hover {
+        background: rgba(255, 255, 255, 0.25);
+        transform: translateY(-3px);
+      }
+
+      /* Responsive */
+      @media (max-width: 768px) {
+        .landing-title, .play-title {
+          font-size: clamp(2rem, 12vw, 4rem);
+        }
+
+        .begin-button, .play-button {
+          font-size: 1.3rem;
+          padding: 1.3rem 3.5rem;
+        }
+
+        .wizard-header {
+          padding: 1.5rem 1.5rem 1rem;
+        }
+
+        .wizard-content {
+          padding: 1rem 1.5rem 1.5rem;
+        }
+
+        .wizard-nav {
+          padding: 1rem 1.5rem 1.5rem;
+        }
+
+        .step-title {
+          font-size: 1.5rem;
+        }
       }
     </style>
   </head>
   <body>
-    <h1>Haunted House Experience</h1>
-    
-    <!-- Video Element -->
-    <video id="film" controls>
-      <source src="video/timer.mp4" type="video/mp4">
-      Your browser does not support the video tag.
-    </video>
-
-    <!-- Video Controls -->
-    <div class="controls">
-      <button id="unmute">Unmute</button>
-      <button id="restart">Restart</button>
-    </div>
-
-    <!-- Cue Points Info -->
-    <div class="cue-points">
-      <h3>Spooky Effects at:</h3>
-      <p>5s: Blackout Effect ⚡</p>
-      <p>12s: Blackout Effect ⚡</p>
-    </div>
-
-    <!-- Voice Monkey Section -->
-    <div class="voice-monkey-section">
-      <h2>🐵 Voice Monkey Setup (Demo Mode)</h2>
-      
-      <div class="countdown-timer" id="setup-timer" style="display: none;">
-        Setup Time: <span id="timer-value">60</span>s
+    <!-- LANDING PAGE -->
+    <div class="landing-page" id="landingPage">
+      <div class="teaser-video-container">
+        <video id="teaserVideo" autoplay loop muted playsinline>
+          <source src="video/teaser1.mp4" type="video/mp4">
+        </video>
       </div>
+      <div class="teaser-overlay"></div>
+      <div class="landing-content">
+        <h1 class="landing-title">Haunted</h1>
+        <button class="begin-button" id="beginBtn">Begin</button>
+      </div>
+    </div>
 
-      <div class="setup-steps">
-        <h3>Quick Setup Instructions:</h3>
-        
-        <div class="step">
-          <span class="step-number">1</span>
-          <strong>Enable Voice Monkey Skill</strong><br>
-          Say: <em>"Alexa, enable Voice Monkey"</em>
+    <!-- WIZARD MODAL -->
+    <div class="wizard-modal" id="wizardModal">
+      <div class="wizard-container">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
         </div>
 
-        <div class="step">
-          <span class="step-number">2</span>
-          <strong>Create Three Routines in Alexa App</strong><br>
-          <em>Copy these exact monkey names:</em><br><br>
-          
-          <div>
-            Routine 1: When Voice Monkey triggers<br>
-            <span class="monkey-name">haunted_demo_blackout</span>
-            <button class="copy-btn" onclick="copyToClipboard('haunted_demo_blackout', event)">Copy</button><br>
-            → Action: Turn off all lights
-          </div><br>
+        <div class="wizard-header">
+          <div class="step-counter" id="stepCounter">STEP 1 OF 7</div>
+          <h2 class="step-title" id="stepTitle">Enable the Haunted Skill</h2>
+        </div>
 
-          <div>
-            Routine 2: When Voice Monkey triggers<br>
-            <span class="monkey-name">haunted_demo_flash</span>
-            <button class="copy-btn" onclick="copyToClipboard('haunted_demo_flash', event)">Copy</button><br>
-            → Action: Set lights to RED
-          </div><br>
+        <div class="wizard-content">
+          <!-- Step 1 -->
+          <div class="step active" data-step="1">
+            <ul class="instruction-list">
+              <li>Open your Alexa app</li>
+              <li>Go to <strong>Skills & Games</strong></li>
+              <li>Search for <strong>"Haunted"</strong></li>
+              <li>Tap <strong>"Enable to Use"</strong></li>
+            </ul>
+          </div>
 
-          <div>
-            Routine 3: When Voice Monkey triggers<br>
-            <span class="monkey-name">haunted_demo_reset</span>
-            <button class="copy-btn" onclick="copyToClipboard('haunted_demo_reset', event)">Copy</button><br>
-            → Action: Turn on lights (normal white)
+          <!-- Step 2 -->
+          <div class="step" data-step="2">
+            <div class="info-box">
+              <strong>What is a Routine?</strong>
+              A routine is simply: <strong>"When THIS happens → Do THAT"</strong>
+              <div class="example">Example: When motion detected → Turn on lights</div>
+            </div>
+            <p style="margin-top: 1.5rem; line-height: 1.6; color: rgba(255, 255, 255, 0.85);">
+              You'll create 3 simple routines to control your lights during the haunted experience.
+            </p>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="step" data-step="3">
+            <p style="margin-bottom: 1rem; color: rgba(255, 255, 255, 0.85);">
+              After enabling the skill, open Alexa app → <strong>Devices tab</strong>
+            </p>
+            <p style="margin-bottom: 1.5rem; color: rgba(255, 255, 255, 0.85);">
+              Look for these 3 new sensors:
+            </p>
+            <div class="sensor-grid">
+              <div class="sensor-card">
+                <div class="sensor-icon">⚫</div>
+                <div class="sensor-name">Haunted off</div>
+              </div>
+              <div class="sensor-card">
+                <div class="sensor-icon">⚪</div>
+                <div class="sensor-name">Haunted on</div>
+              </div>
+              <div class="sensor-card">
+                <div class="sensor-icon">🔴</div>
+                <div class="sensor-name">Flash red</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 4 -->
+          <div class="step" data-step="4">
+            <p style="margin-bottom: 1.5rem; color: rgba(255, 255, 255, 0.85);">
+              This routine turns your lights <strong>OFF</strong> during blackout scenes:
+            </p>
+            <ul class="instruction-list">
+              <li>Tap on <strong>⚫ Haunted off</strong> sensor</li>
+              <li>Tap <strong>"Create Routine"</strong></li>
+              <li>When: <strong>Sensor detects</strong></li>
+              <li>Add Action → Smart Home → <strong>Turn OFF lights</strong></li>
+              <li>Select all lights (or choose specific ones)</li>
+              <li>Save</li>
+            </ul>
+          </div>
+
+          <!-- Step 5 -->
+          <div class="step" data-step="5">
+            <p style="margin-bottom: 1.5rem; color: rgba(255, 255, 255, 0.85);">
+              This routine turns your lights back <strong>ON</strong>:
+            </p>
+            <ul class="instruction-list">
+              <li>Tap on <strong>⚪ Haunted on</strong> sensor</li>
+              <li>Tap <strong>"Create Routine"</strong></li>
+              <li>When: <strong>Sensor detects</strong></li>
+              <li>Add Action → Smart Home → <strong>Turn ON lights</strong></li>
+              <li>Select all lights (or choose specific ones)</li>
+              <li>Save</li>
+            </ul>
+          </div>
+
+          <!-- Step 6 -->
+          <div class="step" data-step="6">
+            <p style="margin-bottom: 1.5rem; color: rgba(255, 255, 255, 0.85);">
+              This routine creates a spooky <strong>RED flash</strong> effect:
+            </p>
+            <ul class="instruction-list">
+              <li>Tap on <strong>🔴 Flash red</strong> sensor</li>
+              <li>Tap <strong>"Create Routine"</strong></li>
+              <li>When: <strong>Sensor detects</strong></li>
+              <li>Add Action → Smart Home → Lights</li>
+              <li>Select your lights</li>
+              <li>Set Color to <strong>RED</strong></li>
+              <li>Save</li>
+            </ul>
+          </div>
+
+          <!-- Step 7 -->
+          <div class="step" data-step="7">
+            <div class="success-icon">🎃</div>
+            <div class="success-message">
+              <strong style="font-size: 1.3rem; display: block; margin-bottom: 1rem;">You're All Set!</strong>
+              Your lights are now synced to the haunted experience.<br><br>
+              Get ready for a spooky show! 👻
+            </div>
           </div>
         </div>
 
-        <div class="step">
-          <span class="step-number">3</span>
-          <strong>Test Your Setup</strong><br>
-          Use the test buttons below to verify each routine works
+        <div class="wizard-nav">
+          <button class="nav-btn btn-back" id="btnBack" disabled>← Back</button>
+          <button class="nav-btn btn-next" id="btnNext">Next →</button>
         </div>
-      </div>
-
-      <div class="test-section">
-        <h3>Test Voice Monkey Triggers</h3>
-        <button class="test-btn" onclick="testVoiceMonkey('blackout')">Test Blackout</button>
-        <button class="test-btn" onclick="testVoiceMonkey('flash')">Test Flash Red</button>
-        <button class="test-btn" onclick="testVoiceMonkey('reset')">Test Reset</button>
-        <div style="margin-top: 10px;">
-          Status: <span id="vm-status">Not tested</span>
-          <span class="status-indicator" id="vm-indicator"></span>
-        </div>
-      </div>
-
-      <div style="text-align: center; margin-top: 20px;">
-        <button id="vm-ready" onclick="markVoiceMonkeyReady()" style="background: #27ae60;">
-          ✓ I've Created All Routines
-        </button>
       </div>
     </div>
 
-    <!-- Light Control Section (Original) -->
-    <div class="light-controls">
-      <h3>Direct Light Control (Alternative)</h3>
-      <button id="btnSetupLights">Setup Lights</button>
-      <button id="btnTestLights">Test Lights</button>
-      <div id="light-status" style="margin: 10px 0; color: #888;">
-        Lights not configured
+    <!-- MAIN EXPERIENCE -->
+    <div class="main-experience" id="mainExperience">
+      <div class="main-video-container">
+        <video id="mainVideo" muted playsinline>
+          <source src="video/film.mp4" type="video/mp4">
+        </video>
+      </div>
+      <div class="main-overlay" id="mainOverlay"></div>
+      <div class="play-content" id="playContent">
+        <h1 class="play-title">Haunted</h1>
+        <button class="play-button" id="playBtn">Play</button>
+      </div>
+      <div class="controls-bar" id="controlsBar">
+        <button class="control-btn" id="restartBtn">↻ Restart</button>
+        <button class="control-btn" id="unmuteBtn">🔊 Unmute</button>
       </div>
     </div>
-
-    <!-- Updated Test Button -->
-    <button id="btnBlackoutDirect">Test All Systems</button>
-
-    <!-- Connection & Test Buttons -->
-    <button id="btnConnect">Connect Smart Home</button>
-    <button id="btnBlackout">Test Blackout Effect</button>
-
-    <!-- Status Log -->
-    <div id="log"></div>
 
     <script>
-      // Voice Monkey configuration
-      let voiceMonkeyReady = false;
-      let setupStartTime = null;
+      // Elements
+      const landingPage = document.getElementById('landingPage');
+      const beginBtn = document.getElementById('beginBtn');
+      const wizardModal = document.getElementById('wizardModal');
+      const mainExperience = document.getElementById('mainExperience');
+      const mainVideo = document.getElementById('mainVideo');
+      const playBtn = document.getElementById('playBtn');
+      const playContent = document.getElementById('playContent');
+      const mainOverlay = document.getElementById('mainOverlay');
+      const controlsBar = document.getElementById('controlsBar');
+      const restartBtn = document.getElementById('restartBtn');
+      const unmuteBtn = document.getElementById('unmuteBtn');
 
-      // Copy to clipboard function
-      function copyToClipboard(text, event) {
-        navigator.clipboard.writeText(text).then(() => {
-          const btn = event.target;
-          const originalText = btn.textContent;
-          btn.textContent = 'Copied!';
-          btn.classList.add('copied');
-          setTimeout(() => {
-            btn.textContent = originalText;
-            btn.classList.remove('copied');
-          }, 2000);
+      // Wizard elements
+      const progressFill = document.getElementById('progressFill');
+      const stepCounter = document.getElementById('stepCounter');
+      const stepTitle = document.getElementById('stepTitle');
+      const btnBack = document.getElementById('btnBack');
+      const btnNext = document.getElementById('btnNext');
+
+      let currentStep = 1;
+      const totalSteps = 7;
+
+      const stepTitles = [
+        "Enable the Haunted Skill",
+        "Understanding Alexa Routines",
+        "Locate Your 3 Sensors",
+        "Set Up Blackout Effect",
+        "Set Up Lights On",
+        "Set Up Red Flash Effect",
+        "You're All Set! 🎃"
+      ];
+
+      // Begin button - open wizard
+      beginBtn.addEventListener('click', () => {
+        wizardModal.classList.add('active');
+      });
+
+      // Wizard navigation
+      function updateStep() {
+        const progress = (currentStep / totalSteps) * 100;
+        progressFill.style.width = progress + '%';
+        
+        stepCounter.textContent = `STEP ${currentStep} OF ${totalSteps}`;
+        stepTitle.textContent = stepTitles[currentStep - 1];
+        
+        document.querySelectorAll('.step').forEach(step => {
+          step.classList.remove('active');
         });
-      }
-
-      // Test Voice Monkey triggers
-      async function testVoiceMonkey(effect) {
-        const statusEl = document.getElementById('vm-status');
-        const indicatorEl = document.getElementById('vm-indicator');
+        document.querySelector(`[data-step="${currentStep}"]`).classList.add('active');
         
-        statusEl.textContent = `Testing ${effect}...`;
-        indicatorEl.classList.remove('ready');
+        btnBack.disabled = currentStep === 1;
         
-        try {
-          const response = await fetch('/api/voicemonkey/trigger', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ 
-              effect: effect,
-              monkey: `haunted_demo_${effect}`
-            })
-          });
-          
-//random comment
-
-          const data = await response.json();
-          
-          if (data.success) {
-            statusEl.textContent = `${effect} triggered successfully!`;
-            statusEl.style.color = '#2ecc71';
-            indicatorEl.classList.add('ready');
-          } else {
-            statusEl.textContent = `Failed to trigger ${effect}`;
-            statusEl.style.color = '#e74c3c';
-          }
-        } catch (error) {
-          statusEl.textContent = `Error: ${error.message}`;
-          statusEl.style.color = '#e74c3c';
-        }
-      }
-
-      // Mark Voice Monkey as ready
-      function markVoiceMonkeyReady() {
-        voiceMonkeyReady = true;
-        const btn = document.getElementById('vm-ready');
-        btn.textContent = '✓ Voice Monkey Ready!';
-        btn.style.background = '#27ae60';
-        btn.disabled = true;
-        
-        // Store in session
-        sessionStorage.setItem('voiceMonkeyReady', 'true');
-        
-        // Stop timer if running
-        if (window.setupTimerInterval) {
-          clearInterval(window.setupTimerInterval);
-          document.getElementById('setup-timer').style.display = 'none';
-        }
-        
-        // Update status
-        const statusEl = document.getElementById('vm-status');
-        statusEl.textContent = 'Ready for film!';
-        statusEl.style.color = '#2ecc71';
-        document.getElementById('vm-indicator').classList.add('ready');
-      }
-
-      // Start setup timer
-      function startSetupTimer() {
-        setupStartTime = Date.now();
-        const timerEl = document.getElementById('setup-timer');
-        const timerValue = document.getElementById('timer-value');
-        
-        timerEl.style.display = 'block';
-        
-        window.setupTimerInterval = setInterval(() => {
-          const elapsed = Math.floor((Date.now() - setupStartTime) / 1000);
-          const remaining = Math.max(0, 60 - elapsed);
-          timerValue.textContent = remaining;
-          
-          if (remaining === 0) {
-            clearInterval(window.setupTimerInterval);
-            timerValue.textContent = '✓';
-            timerValue.style.color = '#2ecc71';
-          }
-        }, 1000);
-      }
-
-      // Modified fireEffect to include Voice Monkey
-      async function fireEffectWithVoiceMonkey(effect, extraPayload) {
-        // If Voice Monkey is ready, use it
-        if (voiceMonkeyReady || sessionStorage.getItem('voiceMonkeyReady') === 'true') {
-          try {
-            const response = await fetch('/api/voicemonkey/trigger', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({ 
-                effect: effect,
-                monkey: `haunted_demo_${effect === 'flash-red' ? 'flash' : effect}`
-              })
-            });
-            
-            const data = await response.json();
-            if (data.success) {
-              console.log('Triggered via Voice Monkey:', effect);
-              return true;
-            }
-          } catch (error) {
-            console.error('Voice Monkey trigger failed:', error);
-          }
-        }
-        
-        // Fallback to original fireEffect
-        return fireEffect(effect, extraPayload);
-      }
-
-      // Define the setupLights function first
-      let lightsConfigured = false;
-      
-      async function setupLights() {
-        try {
-          const response = await fetch('/api/lights/setup', {
-            method: 'POST',
-            credentials: 'include'
-          });
-          const data = await response.json();
-          
-          if (data.success) {
-            lightsConfigured = true;
-            const lightStatusElement = document.getElementById('light-status');
-            if (lightStatusElement) {
-              lightStatusElement.textContent = 'LIGHTS CONNECTED';
-              lightStatusElement.style.color = '#4CAF50';
-            }
-            console.log('Lights setup successful:', data);
-          } else {
-            console.error('Lights setup failed:', data.error);
-            const lightStatusElement = document.getElementById('light-status');
-            if (lightStatusElement) {
-              lightStatusElement.textContent = 'LIGHTS SETUP FAILED';
-              lightStatusElement.style.color = '#FF0000';
-            }
-          }
-        } catch (error) {
-          console.error('Error setting up lights:', error);
-          const lightStatusElement = document.getElementById('light-status');
-          if (lightStatusElement) {
-            lightStatusElement.textContent = 'LIGHTS CONNECTION ERROR';
-            lightStatusElement.style.color = '#FF0000';
-          }
-        }
-      }
-      
-      function testLights() {
-        fireEffectWithVoiceMonkey('blackout', {origin: 'manual_test'});
-      }
-      
-      // Check if Voice Monkey was previously set up
-      document.addEventListener('DOMContentLoaded', function() {
-        if (sessionStorage.getItem('voiceMonkeyReady') === 'true') {
-          markVoiceMonkeyReady();
+        if (currentStep === totalSteps) {
+          btnNext.textContent = 'Complete Setup ✓';
+          btnNext.classList.add('btn-complete');
         } else {
-          // Start the setup timer when page loads
-          startSetupTimer();
+          btnNext.textContent = 'Next →';
+          btnNext.classList.remove('btn-complete');
         }
-        
-        // Setup lights button
-        const btnSetupLights = document.getElementById('btnSetupLights');
-        if (btnSetupLights) {
-          btnSetupLights.addEventListener('click', setupLights);
-        }
-        
-        // Test lights button
-        const btnTestLights = document.getElementById('btnTestLights');
-        if (btnTestLights) {
-          btnTestLights.addEventListener('click', testLights);
-        }
-        
-        // Test all systems button - now uses Voice Monkey if available
-        const btnBlackoutDirect = document.getElementById('btnBlackoutDirect');
-        if (btnBlackoutDirect) {
-          btnBlackoutDirect.addEventListener('click', function() {
-            fireEffectWithVoiceMonkey('blackout', {origin: 'manual_test'});
-          });
-        }
-        
-        // Connect button
-        const btnConnect = document.getElementById('btnConnect');
-        if (btnConnect) {
-          btnConnect.addEventListener('click', function() {
-            window.open('https://ifttt.com/connections/rbgN3WXF-haunted-demo', '_blank');
-          });
-        }
-        
-        // Blackout test button
-        const btnBlackout = document.getElementById('btnBlackout');
-        if (btnBlackout) {
-          btnBlackout.addEventListener('click', async function() {
-            const logEl = document.getElementById('log');
-            const log = (msg) => { logEl.textContent += (logEl.textContent ? '\n' : '') + msg; };
-            
-            log('Testing blackout effect…');
-            try {
-              const r = await fetch('/api/trigger', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ effect: 'blackout' })
-              });
-              const data = await r.json();
-              log('Response: ' + JSON.stringify(data));
-            } catch (e) {
-              log('Error: ' + e.message);
-            }
-          });
-        }
-        
-        // Video event listeners for debugging
-        const film = document.getElementById('film');
-        if (film) {
-          film.addEventListener('timeupdate', () => {
-            document.title = `Haunted Demo - ${Math.floor(film.currentTime)}s`;
-          });
+      }
 
-          film.addEventListener('play', () => {
-            const logEl = document.getElementById('log');
-            const log = (msg) => { logEl.textContent += (logEl.textContent ? '\n' : '') + msg; };
-            log('Video started playing at ' + film.currentTime + 's');
-          });
-        }
-        
-        // Set up other UI elements
-        const unmuteBtn = document.getElementById('unmute');
-        const restartBtn = document.getElementById('restart');
-        
-        if (unmuteBtn && film) {
-          unmuteBtn.addEventListener('click', () => { 
-            film.muted = false; 
-            film.volume = 1.0; 
-          });
-        }
-        
-        if (restartBtn && film) {
-          restartBtn.addEventListener('click', () => {
-            // Reset cues for replay
-            if (window.cues) {
-              for (const c of window.cues) c.fired = false;
-            }
-            film.currentTime = 0;
-            film.play().catch(()=>{});
-          });
+      btnNext.addEventListener('click', () => {
+        if (currentStep < totalSteps) {
+          currentStep++;
+          updateStep();
+        } else {
+          // Complete wizard - show main experience
+          wizardModal.classList.remove('active');
+          landingPage.classList.add('hidden');
+          mainExperience.classList.add('active');
         }
       });
+
+      btnBack.addEventListener('click', () => {
+        if (currentStep > 1) {
+          currentStep--;
+          updateStep();
+        }
+      });
+
+      // Play button - start main video
+      playBtn.addEventListener('click', () => {
+        playContent.classList.add('hidden');
+        mainOverlay.classList.add('fade');
+        
+        setTimeout(() => {
+          mainVideo.muted = false;
+          mainVideo.currentTime = 0;
+          mainVideo.play();
+          controlsBar.classList.add('visible');
+        }, 400);
+      });
+
+      // Restart button
+      restartBtn.addEventListener('click', () => {
+        mainVideo.currentTime = 0;
+        mainVideo.play();
+      });
+
+      // Unmute button
+      unmuteBtn.addEventListener('click', () => {
+        mainVideo.muted = false;
+        mainVideo.volume = 1.0;
+        unmuteBtn.textContent = '🔊 Unmuted';
+      });
+
+      // Video ended
+      mainVideo.addEventListener('ended', () => {
+        playContent.classList.remove('hidden');
+        mainOverlay.classList.remove('fade');
+        playBtn.textContent = 'Watch Again';
+        controlsBar.classList.remove('visible');
+      });
+
+      // Auto-hide controls
+      let hideControlsTimeout;
+      document.addEventListener('mousemove', () => {
+        if (!mainVideo.paused) {
+          controlsBar.classList.add('visible');
+          clearTimeout(hideControlsTimeout);
+          hideControlsTimeout = setTimeout(() => {
+            controlsBar.classList.remove('visible');
+          }, 3000);
+        }
+      });
+
+      // Initialize
+      updateStep();
     </script>
     
-    <!-- Include your app.js AFTER defining the setupLights function -->
+    <!-- Include your app.js for cue points -->
     <script src="/app.js"></script>
   </body>
 </html>

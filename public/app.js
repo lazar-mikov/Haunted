@@ -15,10 +15,10 @@ if (shouldAutoplay && film) {
 
 // ——— define cue times ———
 const schedule = [
-  { t: 5,  event: "blackout" },  
-  { t: 8,  event: "reset" },     // Changed from "blackon" to "reset" (valid effect)
-  { t: 12, event: "flash-red" }, // Example: use flash-red
-  { t: 15, event: "reset" }
+  { t: 5,  event: "haunted-off" },   // Lights off (blackout)
+  { t: 8,  event: "haunted-on" },    // Lights back on
+  { t: 12, event: "flash-red" },     // Red flash effect
+  { t: 15, event: "haunted-on" }     // Lights on again
 ];
 
 // ——— convert to ms ———
@@ -33,12 +33,11 @@ async function fireEffect(effect) {
   try {
     console.log(`🎬 Firing effect: ${effect}`);
     
-    // Updated endpoint and body format
     const response = await fetch("/api/trigger-direct", {
       method: "POST", 
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ effect })  // Simplified body
+      body: JSON.stringify({ effect })
     });
     
     const data = await response.json();
@@ -58,7 +57,7 @@ async function fireEffect(effect) {
 }
 
 // Console test function
-window.testEffect = async (effect = "blackout") => {
+window.testEffect = async (effect = "haunted-off") => {
   console.log(`Testing ${effect} effect...`);
   await fireEffect(effect);
 };

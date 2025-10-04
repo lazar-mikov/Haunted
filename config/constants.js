@@ -1,23 +1,18 @@
 export const SENSOR_CONFIG = {
-  'blackout': {
-    endpointId: 'haunted-blackout-sensor',
-    friendlyName: 'Blackout Trigger',
-    description: 'Contact sensor for blackout effect - use in routines'
+  'haunted-off': {
+    endpointId: 'haunted-off-sensor',
+    friendlyName: 'Haunted off',
+    description: 'Contact sensor for blackout effect - turns lights off'
+  },
+  'haunted-on': {
+    endpointId: 'haunted-on-sensor',
+    friendlyName: 'Haunted on',
+    description: 'Contact sensor for lights on effect - turns lights on'
   },
   'flash-red': {
     endpointId: 'haunted-flash-red-sensor',
-    friendlyName: 'Red Flash Trigger',
-    description: 'Contact sensor for red flash effect - use in routines'
-  },
-  'plug-on': {
-    endpointId: 'haunted-plug-on-sensor',
-    friendlyName: 'Plug On Trigger',
-    description: 'Contact sensor for plug on effect - use in routines'
-  },
-  'reset': {
-    endpointId: 'haunted-reset-sensor',
-    friendlyName: 'Reset Trigger',
-    description: 'Contact sensor for reset effect - use in routines'
+    friendlyName: 'Flash red',
+    description: 'Contact sensor for red flash effect - sets lights to red'
   }
 };
 
