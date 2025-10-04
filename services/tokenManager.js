@@ -3,48 +3,42 @@ import Redis from 'ioredis';
 export class TokenManager {
   constructor() {
     this.quotaExceeded = false;
+    this.memoryTokens = new Map(); // Fallback storage
+    
     if (process.env.REDIS_URL) {
       this.initRedis();
     } else {
-      console.warn('⚠️ REDIS_URL not set - tokens will be lost on restart');
+      console.warn('⚠️ REDIS_URL not set - using in-memory storage (lost on restart)');
       this.redis = null;
     }
   }
 
   initRedis() {
     if (this.quotaExceeded) {
-      console.warn('Redis quota exceeded - staying disconnected');
+      console.warn('Redis quota exceeded - using in-memory storage');
       return;
     }
 
     try {
       this.redis = new Redis(process.env.REDIS_URL, {
-        retryStrategy: (times) => {
-          if (this.quotaExceeded) return null; // Stop retrying
-          if (times > 5) return null; // Give up after 5 attempts
-          return Math.min(times * 1000, 3000);
-        },
-        reconnectOnError: (err) => {
-          if (err.message.includes('max requests limit exceeded')) {
-            this.quotaExceeded = true;
-            return false; // Don't reconnect on quota errors
-          }
-          return true;
-        },
+        lazyConnect: false,
+        enableOfflineQueue: false,
         maxRetriesPerRequest: 1,
-        enableReadyCheck: true
+        retryStrategy: (times) => {
+          if (this.quotaExceeded || times > 3) return null;
+          return Math.min(times * 500, 2000);
+        },
+        reconnectOnError: () => false
       });
       
       this.redis.on('error', (err) => {
         if (err.message.includes('max requests limit exceeded')) {
           this.quotaExceeded = true;
-          console.error('❌ Redis quota exceeded - disabling Redis');
+          console.error('❌ Redis quota exceeded - switching to in-memory storage');
           if (this.redis) {
             this.redis.disconnect();
             this.redis = null;
           }
-        } else {
-          console.error('Redis error:', err.message);
         }
       });
       
@@ -59,64 +53,60 @@ export class TokenManager {
   }
 
   async storeEventGatewayToken(granteeToken, accessToken, refreshToken) {
+    const key = `event_gateway_${granteeToken}`;
+    
+    // Always store in memory as backup
+    this.memoryTokens.set(`token:${key}`, accessToken);
+    this.memoryTokens.set(`refresh:${key}`, refreshToken);
+    
     if (!this.redis || this.quotaExceeded) {
-      console.warn('⚠️ Redis not available - tokens not persisted');
+      console.warn('⚠️ Tokens stored in memory only (will be lost on restart)');
       return;
     }
 
     try {
-      await this.redis.set(`token:event_gateway_${granteeToken}`, accessToken, 'EX', 3600);
-      await this.redis.set(`refresh:event_gateway_${granteeToken}`, refreshToken);
-      console.log('✅ Tokens stored in Redis');
+      await this.redis.set(`token:${key}`, accessToken, 'EX', 3600);
+      await this.redis.set(`refresh:${key}`, refreshToken);
+      console.log('✅ Tokens stored in Redis + memory');
     } catch (error) {
       if (error.message.includes('max requests limit exceeded')) {
         this.quotaExceeded = true;
         this.redis = null;
       }
-      console.error('Failed to store in Redis:', error.message);
+      console.log('⚠️ Redis failed, tokens in memory only');
     }
   }
 
   async getEventGatewayToken() {
+    // Try memory first (faster)
+    const memoryKeys = Array.from(this.memoryTokens.keys()).filter(k => k.startsWith('token:event_gateway_'));
+    if (memoryKeys.length > 0) {
+      return this.memoryTokens.get(memoryKeys[0]);
+    }
+    
+    // Try Redis if available
     if (!this.redis || this.quotaExceeded) return null;
     
     try {
       const keys = await this.redis.keys('token:event_gateway_*');
       if (keys.length === 0) return null;
-      return await this.redis.get(keys[0]);
+      const token = await this.redis.get(keys[0]);
+      
+      // Cache in memory for next time
+      if (token) this.memoryTokens.set(keys[0], token);
+      
+      return token;
     } catch (error) {
-      if (error.message.includes('max requests limit exceeded')) {
-        this.quotaExceeded = true;
-        this.redis = null;
-      }
       return null;
     }
   }
 
   async getAllTokenInfo() {
-    if (!this.redis || this.quotaExceeded) {
-      return { 
-        totalSessions: 0, 
-        hasEventGatewayToken: false,
-        redisConnected: false,
-        quotaExceeded: this.quotaExceeded
-      };
-    }
-    
-    try {
-      const tokenKeys = await this.redis.keys('token:event_gateway_*');
-      return {
-        totalSessions: tokenKeys.length,
-        hasEventGatewayToken: tokenKeys.length > 0,
-        redisConnected: true
-      };
-    } catch (error) {
-      return { 
-        totalSessions: 0, 
-        hasEventGatewayToken: false,
-        redisConnected: false,
-        error: error.message
-      };
-    }
+    return {
+      totalSessions: this.memoryTokens.size / 2, // Each session has 2 entries
+      hasEventGatewayToken: this.getEventGatewayToken() !== null,
+      redisConnected: !!this.redis && !this.quotaExceeded,
+      usingMemory: this.memoryTokens.size > 0
+    };
   }
 }
