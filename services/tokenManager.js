@@ -1,9 +1,11 @@
 import Redis from 'ioredis';
+import axios from 'axios';
 
 export class TokenManager {
   constructor() {
     this.quotaExceeded = false;
     this.memoryTokens = new Map();
+    this.tokenToGrantee = new Map(); // Map access tokens to their grantee tokens
     
     if (process.env.REDIS_URL) {
       this.initRedis();
@@ -55,9 +57,13 @@ export class TokenManager {
   async storeEventGatewayToken(granteeToken, accessToken, refreshToken) {
     const key = `event_gateway_${granteeToken}`;
     
+    // Store mapping
+    this.tokenToGrantee.set(accessToken, granteeToken);
+    
     // Always store in memory
     this.memoryTokens.set(`token:${key}`, accessToken);
     this.memoryTokens.set(`refresh:${key}`, refreshToken);
+    this.memoryTokens.set(`grantee:${key}`, granteeToken);
     
     if (!this.redis || this.quotaExceeded) {
       console.warn('Tokens stored in memory only (lost on restart)');
@@ -67,6 +73,7 @@ export class TokenManager {
     try {
       await this.redis.set(`token:${key}`, accessToken, 'EX', 3600);
       await this.redis.set(`refresh:${key}`, refreshToken);
+      await this.redis.set(`grantee:${key}`, granteeToken);
       console.log('Tokens stored in Redis + memory');
     } catch (error) {
       if (error.message.includes('max requests limit exceeded')) {
@@ -74,6 +81,77 @@ export class TokenManager {
         this.redis = null;
       }
       console.log('Redis failed, tokens in memory only');
+    }
+  }
+
+  async refreshAccessToken(accessToken) {
+    // Find grantee token for this access token
+    let granteeToken = this.tokenToGrantee.get(accessToken);
+    
+    if (!granteeToken) {
+      console.error('Cannot refresh: no grantee token found for access token');
+      return null;
+    }
+    
+    const key = `event_gateway_${granteeToken}`;
+    
+    // Get refresh token
+    let refreshToken = this.memoryTokens.get(`refresh:${key}`);
+    
+    if (!refreshToken && this.redis && !this.quotaExceeded) {
+      try {
+        refreshToken = await this.redis.get(`refresh:${key}`);
+      } catch (error) {
+        console.error('Failed to get refresh token from Redis');
+      }
+    }
+    
+    if (!refreshToken) {
+      console.error('No refresh token available');
+      return null;
+    }
+    
+    try {
+      console.log('Refreshing access token...');
+      
+      const params = new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: process.env.ALEXA_CLIENT_ID,
+        client_secret: process.env.ALEXA_CLIENT_SECRET
+      });
+      
+      const response = await axios.post(
+        'https://api.amazon.com/auth/o2/token',
+        params.toString(),
+        { 
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          timeout: 10000
+        }
+      );
+      
+      const newAccessToken = response.data.access_token;
+      
+      // Update mapping
+      this.tokenToGrantee.delete(accessToken);
+      this.tokenToGrantee.set(newAccessToken, granteeToken);
+      
+      // Store new access token
+      this.memoryTokens.set(`token:${key}`, newAccessToken);
+      
+      if (this.redis && !this.quotaExceeded) {
+        try {
+          await this.redis.set(`token:${key}`, newAccessToken, 'EX', 3600);
+        } catch (error) {
+          console.log('Failed to store refreshed token in Redis');
+        }
+      }
+      
+      console.log('Access token refreshed successfully');
+      return newAccessToken;
+    } catch (error) {
+      console.error('Failed to refresh token:', error.response?.data || error.message);
+      return null;
     }
   }
 

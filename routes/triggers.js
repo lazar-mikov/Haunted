@@ -19,23 +19,26 @@ export function createTriggerRoutes(tokenManager, deviceStates) {
       console.log(`Broadcasting ${effect} to ${allTokens.length} users`);
       
       // Send change reports to ALL users in parallel
-      const reportPromises = allTokens.map(async (token) => {
+      const reportPromises = allTokens.map(async (token, index) => {
         try {
+          console.log(`  User ${index + 1}: Triggering...`);
+          
           deviceStates.set(sensorId, "DETECTED");
-          await sendAlexaChangeReport(sensorId, "DETECTED", token);
+          await sendAlexaChangeReport(sensorId, "DETECTED", token, tokenManager);
           
           setTimeout(async () => {
             try {
               deviceStates.set(sensorId, "NOT_DETECTED");
-              await sendAlexaChangeReport(sensorId, "NOT_DETECTED", token);
+              await sendAlexaChangeReport(sensorId, "NOT_DETECTED", token, tokenManager);
             } catch (error) {
-              console.error(`Failed to reset sensor for user:`, error.message);
+              console.error(`  User ${index + 1}: Failed to reset:`, error.message);
             }
           }, 2000);
           
+          console.log(`  User ${index + 1}: Success`);
           return { success: true };
         } catch (error) {
-          console.error(`Failed to trigger sensor for user:`, error.message);
+          console.error(`  User ${index + 1}: Failed:`, error.message);
           return { success: false, error: error.message };
         }
       });
@@ -88,4 +91,3 @@ export function createTriggerRoutes(tokenManager, deviceStates) {
 
   return router;
 }
-
