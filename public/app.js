@@ -43,7 +43,7 @@ const schedule = [
   
   // At 3:23 (203s) - lights on, then red
   { t: 203.0, event: "haunted-on" },
-  { t: 203.5, event: "flash-red" },
+  { t: 205.5, event: "flash-red" },
   
   // At 4:22 (262s) - 5 slow flashes
   { t: 262.0, event: "haunted-on" },
