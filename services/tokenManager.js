@@ -5,7 +5,7 @@ export class TokenManager {
   constructor() {
     this.quotaExceeded = false;
     this.memoryTokens = new Map();
-    this.tokenToGrantee = new Map(); // Map access tokens to their grantee tokens
+    this.tokenToGrantee = new Map();
     
     if (process.env.REDIS_URL) {
       this.initRedis();
@@ -57,10 +57,8 @@ export class TokenManager {
   async storeEventGatewayToken(granteeToken, accessToken, refreshToken) {
     const key = `event_gateway_${granteeToken}`;
     
-    // Store mapping
     this.tokenToGrantee.set(accessToken, granteeToken);
     
-    // Always store in memory
     this.memoryTokens.set(`token:${key}`, accessToken);
     this.memoryTokens.set(`refresh:${key}`, refreshToken);
     this.memoryTokens.set(`grantee:${key}`, granteeToken);
@@ -85,7 +83,6 @@ export class TokenManager {
   }
 
   async refreshAccessToken(accessToken) {
-    // Find grantee token for this access token
     let granteeToken = this.tokenToGrantee.get(accessToken);
     
     if (!granteeToken) {
@@ -95,7 +92,6 @@ export class TokenManager {
     
     const key = `event_gateway_${granteeToken}`;
     
-    // Get refresh token
     let refreshToken = this.memoryTokens.get(`refresh:${key}`);
     
     if (!refreshToken && this.redis && !this.quotaExceeded) {
@@ -132,11 +128,9 @@ export class TokenManager {
       
       const newAccessToken = response.data.access_token;
       
-      // Update mapping
       this.tokenToGrantee.delete(accessToken);
       this.tokenToGrantee.set(newAccessToken, granteeToken);
       
-      // Store new access token
       this.memoryTokens.set(`token:${key}`, newAccessToken);
       
       if (this.redis && !this.quotaExceeded) {
@@ -156,14 +150,12 @@ export class TokenManager {
   }
 
   async getEventGatewayToken() {
-    // Try memory first
     const memoryKeys = Array.from(this.memoryTokens.keys())
       .filter(k => k.startsWith('token:event_gateway_'));
     if (memoryKeys.length > 0) {
       return this.memoryTokens.get(memoryKeys[0]);
     }
     
-    // Try Redis if available
     if (!this.redis || this.quotaExceeded) return null;
     
     try {
@@ -180,25 +172,39 @@ export class TokenManager {
   }
 
   async getAllEventGatewayTokens() {
-    const tokens = [];
+    const tokenObjects = [];
     
-    // Get from memory
     const memoryKeys = Array.from(this.memoryTokens.keys())
       .filter(k => k.startsWith('token:event_gateway_'));
     
     for (const key of memoryKeys) {
       const token = this.memoryTokens.get(key);
-      if (token) tokens.push(token);
+      const granteeToken = key.replace('token:event_gateway_', '');
+      
+      if (token) {
+        tokenObjects.push({ 
+          accessToken: token, 
+          granteeToken: granteeToken 
+        });
+        
+        this.tokenToGrantee.set(token, granteeToken);
+      }
     }
     
-    // Also try Redis if available
     if (this.redis && !this.quotaExceeded) {
       try {
         const redisKeys = await this.redis.keys('token:event_gateway_*');
         for (const key of redisKeys) {
           const token = await this.redis.get(key);
-          if (token && !tokens.includes(token)) {
-            tokens.push(token);
+          const granteeToken = key.replace('token:event_gateway_', '');
+          
+          if (token && !tokenObjects.find(t => t.accessToken === token)) {
+            tokenObjects.push({ 
+              accessToken: token, 
+              granteeToken: granteeToken 
+            });
+            
+            this.tokenToGrantee.set(token, granteeToken);
           }
         }
       } catch (error) {
@@ -206,8 +212,8 @@ export class TokenManager {
       }
     }
     
-    console.log(`Retrieved ${tokens.length} user tokens for broadcast`);
-    return tokens;
+    console.log(`Retrieved ${tokenObjects.length} user tokens for broadcast`);
+    return tokenObjects;
   }
 
   async getAllTokenInfo() {

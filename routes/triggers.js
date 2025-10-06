@@ -7,7 +7,6 @@ export function createTriggerRoutes(tokenManager, deviceStates) {
   const router = express.Router();
 
   async function triggerContactSensor(sensorId, effect) {
-    // Get ALL user tokens
     const allTokens = await tokenManager.getAllEventGatewayTokens();
     
     if (allTokens.length === 0) {
@@ -18,18 +17,17 @@ export function createTriggerRoutes(tokenManager, deviceStates) {
     try {
       console.log(`Broadcasting ${effect} to ${allTokens.length} users`);
       
-      // Send change reports to ALL users in parallel
-      const reportPromises = allTokens.map(async (token, index) => {
+      const reportPromises = allTokens.map(async (tokenObj, index) => {
         try {
           console.log(`  User ${index + 1}: Triggering...`);
           
           deviceStates.set(sensorId, "DETECTED");
-          await sendAlexaChangeReport(sensorId, "DETECTED", token, tokenManager);
+          await sendAlexaChangeReport(sensorId, "DETECTED", tokenObj.accessToken, tokenManager);
           
           setTimeout(async () => {
             try {
               deviceStates.set(sensorId, "NOT_DETECTED");
-              await sendAlexaChangeReport(sensorId, "NOT_DETECTED", token, tokenManager);
+              await sendAlexaChangeReport(sensorId, "NOT_DETECTED", tokenObj.accessToken, tokenManager);
             } catch (error) {
               console.error(`  User ${index + 1}: Failed to reset:`, error.message);
             }
