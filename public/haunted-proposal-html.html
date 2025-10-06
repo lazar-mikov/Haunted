@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HAUNTED - A Smart Home Narrative</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        @page {
+            margin: 2cm;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0a0a;
+            color: #d4d4d4;
+            line-height: 1.7;
+            font-size: 11pt;
+            max-width: 210mm;
+            margin: 0 auto;
+            padding: 20mm;
+        }
+        
+        h1, h2, h3 {
+            font-family: 'Playfair Display', serif;
+            color: #ffffff;
+            font-weight: 900;
+            letter-spacing: 0.5px;
+        }
+        
+        h1 {
+            font-size: 48pt;
+            text-align: center;
+            margin-bottom: 8pt;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            font-size: 12pt;
+            color: #888;
+            margin-bottom: 40pt;
+            letter-spacing: 2px;
+        }
+        
+        h2 {
+            font-size: 22pt;
+            margin-top: 30pt;
+            margin-bottom: 12pt;
+            border-left: 4px solid #8b0000;
+            padding-left: 12pt;
+        }
+        
+        h3 {
+            font-size: 14pt;
+            margin-top: 20pt;
+            margin-bottom: 10pt;
+            color: #c4c4c4;
+        }
+        
+        p {
+            margin-bottom: 12pt;
+            text-align: justify;
+        }
+        
+        .ritual-text {
+            font-family: 'Playfair Display', serif;
+            font-style: italic;
+            font-size: 13pt;
+            line-height: 1.9;
+            color: #b8b8b8;
+            text-align: center;
+            margin: 25pt 0;
+            padding: 20pt;
+            border-top: 1px solid #333;
+            border-bottom: 1px solid #333;
+        }
+        
+        .image-placeholder {
+            width: 100%;
+            height: 300px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 20pt 0;
+            color: #555;
+            font-size: 10pt;
+        }
+        
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20pt;
+            margin: 20pt 0;
+        }
+        
+        .highlight-box {
+            background: #151515;
+            border-left: 3px solid #8b0000;
+            padding: 15pt;
+            margin: 20pt 0;
+        }
+        
+        .team-member {
+            margin-bottom: 20pt;
+        }
+        
+        .team-member strong {
+            color: #fff;
+            font-size: 12pt;
+        }
+        
+        ul, ol {
+            margin-left: 20pt;
+            margin-bottom: 12pt;
+        }
+        
+        li {
+            margin-bottom: 6pt;
+        }
+        
+        a {
+            color: #c4c4c4;
+            text-decoration: none;
+            border-bottom: 1px solid #444;
+        }
+        
+        a:hover {
+            color: #fff;
+            border-bottom-color: #8b0000;
+        }
+        
+        .timeline-item {
+            margin-bottom: 8pt;
+            padding-left: 15pt;
+            border-left: 2px solid #333;
+        }
+        
+        .timeline-item strong {
+            color: #c4c4c4;
+        }
+        
+        hr {
+            border: none;
+            border-top: 1px solid #222;
+            margin: 30pt 0;
+        }
+        
+        .page-break {
+            page-break-before: always;
+        }
+        
+        @media print {
+            body {
+                background: white;
+                color: #2a2a2a;
+            }
+            
+            h1, h2, h3, .team-member strong {
+                color: #000;
+            }
+            
+            .ritual-text {
+                color: #4a4a4a;
+            }
+            
+            .highlight-box {
+                background: #f5f5f5;
+                border-left-color: #000;
+            }
+            
+            a {
+                color: #2a2a2a;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>HAUNTED</h1>
+    <div class="subtitle">A Smart Home Narrative — By Lazar Mikov</div>
+
+    <div class="image-placeholder">[HEADER IMAGE: Flickering light bulb / haunted house / phone screen]</div>
+
+    <h2>Concept</h2>
+    
+    <p><strong>What if your home became part of the horror?</strong></p>
+    
+    <p>Smart homes are now part of everyday life — we use them to control lights, plugs, heating, music, and more, all from our phones or with a voice command. These devices are designed for convenience and comfort, but their connected nature also opens a door to unexpected interactions — and in this case, fear.</p>
+    
+    <p>Haunted is the first found footage horror experience that interacts directly with your living space. As the story unfolds on screen, the film uses smart plugs, lights, and speakers to trigger real-world effects: lights flicker, devices switch on, eerie sounds emerge from the next room. Through official APIs and temporary user consent, your smart home becomes the haunted set — blurring the line between film and reality in a deeply immersive way.</p>
+
+    <h3>Smart Home Narrative?</h3>
+    
+    <p>Traditional screen-based stories reach us through sight and sound. Haunted introduces an experimental Smart Home Narrative — storytelling that extends into the physical environment of the viewer. This is not just a film but a prototype of a new genre where connected technologies turn everyday spaces into narrative arenas. From horror to games to music, smart home narrative opens the door to experiences that blur the line between media and life.</p>
+    
+    <p>As smart homes move from novelty to norm, they will become the natural stage for a new kind of storytelling. Haunted is a pioneer that shows how films can spill out of the screen and into the connected devices around us.</p>
+
+    <div class="page-break"></div>
+
+    <h2>Story and Content</h2>
+
+    <div class="ritual-text">
+        Flicker once to call its name.<br>
+        Flicker twice to start the game.<br>
+        Flicker three, it sees your face.<br>
+        Flicker four, it knows this place.<br>
+        Flicker five — It has arrived.
+    </div>
+
+    <div class="image-placeholder">[STORY IMAGE: Found footage still / phone recording séance]</div>
+
+    <h3>Logline</h3>
+    <p>A séance teaches a spirit the language of light. One flicker for yes. Two for no. Five to cross over—into your home.</p>
+
+    <h3>Short Synopsis</h3>
+    
+    <p>Five friends in a house, All misfits. And of course, they try to summon ghosts.</p>
+    
+    <p>Their tool, an app. Once installed, the door opens.</p>
+    
+    <p>Are you here? Flicker once for yes, two for no.</p>
+    
+    <p>And so it does. Lights flicker once. Fear on their faces.</p>
+    
+    <p>Ruby, the owner of the home, begs them to stop. Her friends laugh it off as they are sure this is just a funny prank app. The round continues with yes and no questions, oddly accurate answers. Until, lights flicker five times. What does that mean?</p>
+    
+    <p>Are you real? - One flicker.</p>
+    
+    <p>Will you leave now? - Two flickers.</p>
+    
+    <p>Ruby deletes the app and ends the night. However, once installed, the door remains open.</p>
+    
+    <div class="highlight-box">
+        <p>The next day, Ruby is gone.</p>
+        
+        <p>Her parents find the house empty. Bed made. Car in the driveway. Phone on the kitchen counter. No note. No sign of struggle. Just... gone.</p>
+        
+        <p>The police find footage on her phone. Filmed that night, hours after her friends left. Ruby is alone in her bedroom. Sitting on the bed. Looking at something off-camera.</p>
+        
+        <p>"I don't understand what you want," she says to the empty room.</p>
+        
+        <p>The bedside lamp flickers. Once. Twice. Three times.</p>
+        
+        <p>The footage continues for three more minutes. Just an empty room. A made bed. Stillness.</p>
+        
+        <p>Viewer lights flicker five times. The ghost is now in your apartment.</p>
+    </div>
+
+    <h3>Patterns are Language</h3>
+    
+    <p>The film teaches the viewer to read light through repetition and escalation. It starts simple: one flicker means yes, two means no. Characters ask, lights answer, and the film trains the viewer to count instinctively as the lights in their house flicker.</p>
+    
+    <p>Then this language expands. The film demonstrates that three flickers mean "it sees you," four means "it knows this place," five means "the threshold breaks." But there is more to just counting. Tempo carries emotion: slow, patient pulses signal something calm, while rapid flickers communicate agitation, anger and urgency. The film introduces color as intent—white for neutral communication, blue for cold distance, red for threat. The film conditions the viewer through constant demonstration.</p>
+
+    <h3>Bloody Mary and Ouija Board for the New Age</h3>
+    
+    <p>Humans have always sought to communicate with the other side. We've chanted into mirrors, spelled messages with wooden planchettes, held séances by candlelight. The tools change, but the impulse remains: we want to know if something is listening.</p>
+    
+    <p>Haunted is the latest evolution of that ancient ritual. An homage to Bloody Mary's mirror chant and the Ouija board's patient spelling, reimagined for the era of smart homes and app stores.</p>
+    
+    <p>Ritual-based horror is an enduring narrative structure in the genre. From Candyman to The Ring, from Ringu to It Follows, the most memorable horror stories are built on simple, repeatable rules: say the name five times, watch the tape, pass on the curse.</p>
+
+    <div class="page-break"></div>
+
+    <h2>Style</h2>
+
+    <div class="image-placeholder">[STYLE IMAGE: Phone POV / found footage aesthetic]</div>
+
+    <p>Haunted is phrased as a found footage film. This accessibility is crucial: it makes the fear feel achievable, replicable, like something that could happen to anyone with a phone and an app. Additionally, it lowers the costs and simplicity of filming, making it possible to achieve in a short time.</p>
+    
+    <p>At its core, Haunted is an interactive smart home experience that uses found footage as its delivery mechanism. The viewer connects their smart lights through a companion app or Alexa skill, establishing direct communication between the story and their physical space. The film becomes the conductor, orchestrating their devices in real-time. This transforms the viewing experience from passive observation into active participation.</p>
+
+    <h2>Development Details</h2>
+
+    <h3>How it Works from the Viewer's Side</h3>
+    
+    <p>Viewers begin by visiting the Haunted website or app, where they're guided through a short setup. They connect the smart devices they already own — whether lights, speakers, or smart plugs — using Google Home, Alexa.</p>
+    
+    <p>A quick test flickers a lamp or plays a sound to confirm everything works. Depending on which devices the viewer has, the experience adapts: someone with a smart speaker might hear whispers from the next room, while someone with connected lights will see them flicker or shift in color. Each home becomes its own haunted set, uniquely shaped by the devices available.</p>
+    
+    <p>Then, they press play. The film runs like a normal found footage horror story, but at key moments the viewer's real devices respond — a fan turns on, lights pulse, or a hidden voice creeps in.</p>
+    
+    <p>The experience prioritises simplicity, ensuring that setup takes only a few taps for a smooth start.</p>
+
+    <div class="page-break"></div>
+
+    <h2>Heavy Lifting and Feasibility</h2>
+
+    <h3>Open APIs and Platforms</h3>
+    
+    <p>Haunted is built entirely on publicly available, well-documented APIs. No proprietary technology or custom hardware is required:</p>
+    
+    <ul>
+        <li>Amazon Alexa Skills Kit: developer.amazon.com/alexa/alexa-skills-kit</li>
+        <li>Google Home Actions: developers.google.com/assistant</li>
+        <li>IFTTT Platform: ifttt.com/explore</li>
+    </ul>
+    
+    <p>These platforms allow the film to communicate with viewers' existing smart devices—triggering lights to flicker, speakers to emit sounds, plugs to switch states—all synchronized to narrative moments in the story.</p>
+
+    <div class="image-placeholder">[TECHNICAL DIAGRAM: System architecture / flow chart]</div>
+
+    <h3>Current Status: Working Alexa Prototype</h3>
+    
+    <p>A functional prototype has been developed over the past month, demonstrating the core interactive mechanics. The system consists of three interconnected components:</p>
+
+    <div class="highlight-box">
+        <p><strong>1. The Web Platform:</strong> https://haunted-production.up.railway.app/</p>
+        
+        <p>A custom website hosts the video content and serves as the control center. Built using standard web technologies and the site allows users to stream the film directly in their browser, access setup instructions for connecting their devices, and monitor which smart home platform they're using.</p>
+        
+        <p>The website includes timestamp markers embedded in the video timeline. At specific narrative moments or when the lights should flicker five times—the website sends signals to the connected smart home ecosystem.</p>
+        
+        <p>At the moment the film is paired to a found footage film that was also shot last month, meant to immerse the viewer. This film is still not a narrative story that was described above but a visual teaser of how the story can feel.</p>
+    </div>
+
+    <div class="highlight-box">
+        <p><strong>2. The Alexa Skill</strong></p>
+        
+        <p>Development focused on Alexa's routine and automation capabilities. The skill was built using Amazon's Alexa Skills Kit, which provides device discovery to identify which smart lights/plugs the user has connected, action execution to control those devices, and three virtual sensors to connect the devices to.</p>
+        
+        <p>How the workflow operates: Users create Alexa routines with the sensors in the Alexa app before watching. At this point the user has to manually create the routines and pre-made routines will be the next step for a user friendly process with less friction.</p>
+    </div>
+
+    <div class="highlight-box">
+        <p><strong>3. The Synchronization Bridge</strong></p>
+        
+        <p>The challenge was connecting the web-based video player to Alexa's sensor ecosystem. The current implementation uses a timestamp-based trigger system:</p>
+        
+        <p>The web player monitors the video's playback time. At specific timestamps throughout the video, the website sends HTTP API requests to toggle virtual sensors between open and closed states. These sensors are connected to the user's Alexa account and monitored by pre-configured routines.</p>
+        
+        <p>The flow works as follows: Video reaches a predetermined timestamp → Website sends API request to change sensor state → Alexa detects the sensor state change → Alexa executes the corresponding routine (e.g., "Flash lights once") → Viewer's light flickers</p>
+        
+        <p>Since there is no narrative content yet—only a technical proof-of-concept—the timestamps are simple markers for testing flicker patterns. At these predetermined moments, lights flicker to demonstrate the synchronization works. Future development will align these timestamps with actual story beats (character dialogue, dramatic moments, climactic scenes).</p>
+    </div>
+
+    <p><em>Instructions on how to test the demo are at the bottom of the proposal.</em></p>
+
+    <h3>Next Steps for Development</h3>
+    
+    <p><strong>Google Home Integration:</strong> Google Home requires a separate implementation built using Google's developer tools and APIs. While the core concept remains the same—sensors triggering routines that control smart devices—the skill must be recreated from scratch using Google's platform to achieve a wider reach.</p>
+    
+    <p><strong>Standalone Mobile App (Potential Future Development):</strong> A dedicated mobile application is being explored as an alternative delivery method. The app would stream the film directly within the application, control connected devices through native integrations without Alexa and Google Home, offer enhanced features (push notifications, location-aware triggers, color control for RGB bulbs), and provide a unified experience regardless of which smart home ecosystem the user has.</p>
+    
+    <p>The app approach offers more features and bypasses the Google and Alexa ecosystem, talking directly to the lights. It is based on Light brands such as Phillips Hue and Tuya. The app is in the early development stage.</p>
+
+    <div class="page-break"></div>
+
+    <h2>Distribution</h2>
+
+    <p>Haunted will be distributed primarily through a dedicated web platform and companion app/skill, allowing users to stream the experience directly in their homes. Viewers connect their smart devices through the app, watch the film via browser, and experience synced real-world scares. This approach makes the experience universally accessible — anyone can join in from anywhere, at any time, without needing special hardware beyond the devices they already own.</p>
+    
+    <p>For viewers who don't yet have a smart home setup but still want the full interactive experience, Haunted will offer optional bundles. These "Haunted Kits" include a small set of plug-and-play devices such as a smart bulb, a smart plug, and a compact speaker. The bundle comes pre-configured to connect with the Haunted app, so setup is as simple as plugging in the devices and linking them once. This ensures that anyone — regardless of their current smart home equipment — can take part in the interactive version of the film.</p>
+    
+    <p>The project will launch around Halloween, tapping into the seasonal appetite for immersive scares and horror experiences. Haunted positions itself as a refreshing Halloween event for the digital age — turning any connected home into a real-life haunted house.</p>
+    
+    <p>Alongside its commercial release, the project will be submitted to festivals that nurture new media and immersive content.</p>
+
+    <h3>Pop-Up Installations (Pre-Launch Testing & Exposure)</h3>
+    
+    <p>Before the October 2026 public release, Haunted will be tested through controlled pop-up installations. These temporary experiences serve multiple purposes: they allow for real-world testing of the interactive mechanics in a supervised environment, generate early buzz and word-of-mouth exposure, and provide valuable user feedback before the at-home version launches.</p>
+    
+    <p>Pop-up installations offer a glimpse of the full experience in a curated setting—a small room equipped with smart lights and speakers where small groups (3-5 people) can watch the film and experience the synchronized device responses. This controlled environment allows the team to observe viewer reactions, identify technical issues, refine timing, and gather direct feedback on what works and what doesn't.</p>
+    
+    <p>Potential venues include galleries, tech showcases, film festivals, or partnership spaces. These installations create an event around the experience.</p>
+
+    <div class="page-break"></div>
+
+    <h2>Target Audience and Expected Reach</h2>
+
+    <div class="image-placeholder">[AUDIENCE IMAGE: Horror fans / smart home users / festival crowd]</div>
+
+    <p>Horror fans (myself included) are one of the most loyal consumer groups on the market. Smart home users are willing to engage with new technology and tech experiences.</p>
+    
+    <p>Therefore the target audience for Haunted lies at the intersection of two groups: horror fans and smart home users.</p>
+    
+    <p>To extend reach, a non-interactive version will also be available for casual horror fans who may not own smart devices. This ensures Haunted isn't limited to a niche, while the interactive edition serves as a pioneering showcase of what's possible when film meets smart technology.</p>
+    
+    <p>Marketing will lean into horror's natural online culture. Just as The Blair Witch Project broke ground with its viral campaign, Haunted will engage audiences where they already share and react — TikTok, Reddit forums and communities where horror thrives. Overall it aims to stand out as: - The horror film that makes your lights flicker.</p>
+
+    <h2>Competitor Analysis</h2>
+
+    <h3>Haunted Houses and Attractions</h3>
+    
+    <p>The haunted attraction industry thrives on immersion and atmosphere, generating millions of visitors annually. Yet these experiences are limited by geography, capacity, and seasonality. Haunted takes the appeal of the haunted house — physical, personal scares — and scales it globally by using smart homes as the stage. This makes the experience more accessible (no travel, no queues), more scalable (no fixed venue required), and infinitely adaptable (new seasonal editions or cultural variations can be rolled out worldwide).</p>
+
+    <h3>Digital Interactive Projects</h3>
+    
+    <p>Interactive horror experiences like Take This Lollipop 2 and Black Mirror: Bandersnatch have shown that audiences are eager for formats that blur the line between storytelling and technology. Their innovation lies in using interactivity or personalization to heighten immersion. Haunted takes this one step further: rather than keeping the interaction on-screen, it brings it into the viewer's physical space. Devices become narrative tools, creating a uniquely embodied form of storytelling that differentiates Haunted from earlier interactive experiments.</p>
+
+    <h3>Found Footage Horror</h3>
+    
+    <p>The found footage genre has proven to be one of the most effective models for horror storytelling. Projects like The Blair Witch Project (1999) and Paranormal Activity (2007) succeeded by combining minimal production costs with maximum psychological impact. Their power came from intimacy, realism, and the unsettling feeling that the story could be happening "next door." Haunted builds on these same qualities but updates them for a digital-native audience.</p>
+    
+    <p>Found footage storytelling makes horror feel close to everyday life. Haunted attractions make it tangible. Haunted combines both traditions with digital innovation, creating a scalable, immersive horror experience that lives in the most familiar place — at home.</p>
+
+    <div class="page-break"></div>
+
+    <h2>Team</h2>
+
+    <div class="team-member">
+        <p><strong>Lazar Mikov – Producer / Director</strong></p>
+        <p>Film production student at DFFB with a background in web development. Lazar bridges cinematic storytelling with interactive technology, having created multiple experimental films that push the boundaries between screen and viewer.</p>
+        
+        <p>Previous interactive projects include:</p>
+        <ul>
+            <li><strong>#Murder</strong> - An interactive thriller using a Unity mobile app that sends real-time messages and phone calls from the film's protagonist to the viewer's device, synchronized with narrative time cues (discontinued)</li>
+            <li><strong>Mask Only</strong> - An interactive film created during COVID-19 that uses camera recognition technology to play only when the viewer wears a medical mask, exploring themes of visibility and protection</li>
+            <li><strong>Closed</strong> (in development) - An experimental piece using image recognition that plays exclusively when the viewer closes their eyes, inverting the traditional viewing experience</li>
+        </ul>
+        
+        <p>GitHub: https://github.com/lazar-mikov</p>
+        
+        <p>The complete codebase for the work is publicly available. These projects demonstrate Lazar's commitment to exploring how technology can make film a participatory medium rather than passive consumption. Haunted represents the natural evolution of this work—scaling interactive cinema from individual devices to entire connected homes.</p>
+    </div>
+
+    <div class="team-member">
+        <p><strong>Kriti Dale – Director of Photography</strong></p>
+        <p>Kriti Dale studies cinematography at the DFFB, where she has developed a strong focus on visual storytelling through camera work. Her style combines technical precision with an intuitive sense for atmosphere, using light and movement to heighten tension and emotion.</p>
+    </div>
+
+    <div class="team-member">
+        <p><strong>Samir Ljuma – Cinematographer / Visual Consultant</strong></p>
+        <p>Samir Ljuma is an award-winning cinematographer whose work has screened at festivals such as Sundance and Berlinale. Known for his atmospheric visual style, he brings expertise in crafting tension and realism. For Haunted, he serves as a visual consultant, helping shape the project's distinctive look and ensuring its blend of found-footage and smart home interactivity feels authentic.</p>
+    </div>
+
+    <div class="team-member">
+        <p><strong>Barbara Stieckler – Special Effects & Makeup</strong></p>
+        <p>Recent graduate from Hasso-Von-Hugo Berlin with specialized training in special effects and prosthetics. Barbara brings practical expertise in creating realistic wounds, aging effects, and atmospheric makeup design essential for grounding the film's supernatural elements in tactile, believable horror aesthetics.</p>
+    </div>
+
+    <div class="team-member">
+        <p><strong>Saad Elhachimi – Editor</strong></p>
+        <p>Documentary filmmaker and editor with experience in crafting narrative from raw footage.</p>
+    </div>
+
+    <h3>Team Development Strategy</h3>
+    
+    <p>The core team is intentionally lean at this stage, focusing on concept development and the creation of a functional demo. With experience in coding and prototyping already in-house, the initial goal is to deliver a testable proof of concept that demonstrates Haunted's unique potential. Once the demo is complete, the team will expand. At that point, developers and technical partners will be brought on board to scale the project and refine its smart home integrations. The team will actively seek out co-production opportunities, ensuring access to additional expertise, resources, and distribution networks as Haunted grows from prototype to full release.</p>
+
+    <div class="page-break"></div>
+
+    <h2>Rights Clearance & Alexa Skill Certification</h2>
+
+    <h3>Software & Platform Access</h3>
+    
+    <p>All tools used in Haunted are publicly available and free to access. Amazon Alexa's development platform, APIs, and documentation are open to developers worldwide without licensing fees or copyright restrictions. The same applies to Google Home's development tools. This accessibility is by design—Amazon and Google actively encourage third-party developers to build on their platforms.</p>
+    
+    <p>The skill leverages custom user routines, meaning viewers create their own configurations connecting sensors to their devices. This gives users control over their experience while keeping the system flexible and compliant with platform guidelines.</p>
+
+    <h3>Alexa Skill Certification</h3>
+    
+    <p>The path to public release is straightforward. Amazon provides clear certification guidelines, and the process is standard for all Alexa skills:</p>
+    
+    <ul>
+        <li><strong>Beta Testing:</strong> Closed testing with invited users to refine functionality and gather feedback</li>
+        <li><strong>Certification Submission:</strong> The skill is submitted through Amazon's Developer Console with documentation and privacy policies</li>
+        <li><strong>Amazon Review:</strong> Amazon evaluates functionality, user experience, and policy compliance—a standard review process all skills undergo. This can be only done once the skill is fully developed.</li>
+        <li><strong>Public Release:</strong> Once approved, the skill becomes available in the Alexa Skills store</li>
+    </ul>
+    
+    <p>This is an established, well-documented process. Thousands of developers have successfully published Alexa skills following the same path. The tools are accessible, the guidelines are clear, and Amazon provides support throughout development and certification.</p>
+    
+    <p><strong>Attached:</strong> Policy Requirements for Alexa Skills:<br>
+    https://developer.amazon.com/en-US/docs/alexa/custom-skills/policy-requirements-for-an-alexa-skill.html</p>
+
+    <h2>Alternative Delivery Methods</h2>
+
+    <h3>Standalone App</h3>
+    
+    <p>If the Alexa skill certification process encounters delays or obstacles, a standalone mobile application serves as an equally viable delivery method. The app would provide the same core experience—synchronized device control and interactive horror—while bypassing the need for Amazon's approval process.</p>
+    
+    <p>A dedicated app offers several advantages: Direct control over the user experience and timing, cross-platform compatibility (works with both Alexa and Google Home devices), enhanced features like push notifications, in-app tutorials, and visual feedback, no dependency on third-party certification timelines, and ability to update and iterate quickly based on user feedback.</p>
+    
+    <p>Development of the app is already being explored as a parallel track, positioned either as the primary delivery method or as a complement to the Alexa skill.</p>
+    
+    <p>The app is built using open-source libraries registered under the MIT License, ensuring legal compliance and transparency in the codebase. Example libraries include:</p>
+    
+    <ul>
+        <li><strong>TinyTuya</strong> (https://github.com/jasonacox/tinytuya) - For Tuya-compatible smart devices</li>
+        <li><strong>Tapo</strong> (https://github.com/mihai-dinculescu/tapo) - For TP-Link Tapo lights and plugs</li>
+        <li><strong>phue</strong> (https://github.com/studioimaginaire/phue) - For Philips Hue lighting systems</li>
+    </ul>
+    
+    <p>All three libraries are open-source (MIT License), actively maintained, and widely used in smart home automation projects that control lights locally.</p>
+
+    <h3>Pop-Up Installations</h3>
+    
+    <p>Physical installations provide a guaranteed method of delivering the experience regardless of platform certification status. Pop-up installations in galleries, festivals, or partnership spaces allow audiences to experience Haunted in a controlled, curated environment where all technical elements are pre-configured and supervised.</p>
+    
+    <p>These installations serve multiple purposes: Immediate audience access without requiring personal device setup, proof-of-concept for partners, press, and investors, valuable user testing and feedback collection, and marketing and buzz generation.</p>
+    
+    <p>Although this is an alternative method of delivery, the end goal of the experience is to get to the home of the user.</p>
+
+    <div class="page-break"></div>
+
+    <h2>Timeline</h2>
+
+    <div class="timeline-item"><strong>September 2025</strong> – In-house demo (Alexa)</div>
+    <div class="timeline-item"><strong>November 2025</strong> – Testable demo for external users (Already achieved) + Co-production outreach + onboarding of technical partners</div>
+    <div class="timeline-item"><strong>December 2025 – January 2026</strong> – Filming of the core found footage material (max. 2 weeks) and start of post-production</div>
+    <div class="timeline-item"><strong>February - March 2026</strong> – Initial development for Google Home compatibility</div>
+    <div class="timeline-item"><strong>April 2026</strong> – First full round of external testing (Alexa + IFTTT + Google Home)</div>
+    <div class="timeline-item"><strong>May–June 2026</strong> – Full product assembled and refinements carried out simultaneously based on testing feedback</div>
+    <div class="timeline-item"><strong>August 2026</strong> – Marketing campaign launch: TikTok influencer activations, Reddit/Discord community seeding, teaser release</div>
+    <div class="timeline-item"><strong>September 2026</strong> – Festival submissions</div>
+    <div class="timeline-item"><strong>October 2026</strong> – Public release aligned with Halloween</div>
+
+    <div class="page-break"></div>
+
+    <h2>Alexa Demo Testing Instructions</h2>
+
+    <h3>Requirements</h3>
+    <ul>
+        <li>Alexa account</li>
+        <li>Smart lights linked to Alexa</li>
+    </ul>
+    
+    <p><strong>Testing account provided:</strong> A dummy Alexa account is available with the Haunted skill already installed. However, lights are NOT pre-configured—testers must add and configure their own smart lights to this account. If you want to test using your own personal Alexa account instead, email lazarmikov@gmail.com to be added as a beta tester.</p>
+    
+    <p><strong>Test account email:</strong> pennamejohndoe@gmail.com<br>
+    <strong>Password:</strong> TestingTheFlow1!</p>
+
+    <h3>Setup Workflow</h3>
+    
+    <p><strong>1. Configure Smart Lights</strong></p>
+    <ul>
+        <li>Add your smart lights to the provided dummy Alexa account (or your own account if approved)</li>
+        <li>Ensure lights are discoverable and controllable via the Alexa app</li>
+    </ul>
+    
+    <p><strong>2. Refresh the Skill</strong></p>
+    <ul>
+        <li>In the Alexa app, go to the Haunted skill</li>
+        <li>Disable the skill, then re-enable it</li>
+        <li>This refreshes the connection between the skill and your newly configured lights</li>
+    </ul>
+    
+    <p><strong>3. Find the Three Sensors</strong></p>
+    <p>In your Alexa app, locate these three sensors:</p>
+    <ul>
+        <li>Haunted On</li>
+        <li>Haunted Off</li>
+        <li>Red Sensor</li>
+    </ul>
+    
+    <p><strong>4. Create Alexa Routines</strong></p>
+    <p>Set up the following three routines:</p>
+    
+    <p><strong>Routine 1:</strong></p>
+    <ul>
+        <li>When: Haunted On sensor triggers</li>
+        <li>Action: All lights → Power → On</li>
+    </ul>
+    
+    <p><strong>Routine 2:</strong></p>
+    <ul>
+        <li>When: Haunted Off sensor triggers</li>
+        <li>Action: All lights → Power → Off</li>
+    </ul>
+    
+    <p><strong>Routine 3:</strong></p>
+    <ul>
+        <li>When: Red Sensor triggers</li>
+        <li>Action: All lights → Flash red</li>
+    </ul>
+    
+    <p><strong>5. Prepare for Testing</strong></p>
+    <ul>
+        <li>Ensure lights are turned on at the physical switch (not just via app)</li>
+        <li>Go to the Haunted website: https://haunted-production.up.railway.app/</li>
+        <li>Click play</li>
+    </ul>
+
+    <h3>Troubleshooting</h3>
+    
+    <p>If the demo does not work, it is likely that the server has restarted and lost the access token. A quick reboot will resolve this.</p>
+    
+    <p><strong>For immediate support during testing or additional instructions:</strong><br>
+    Call: +49 162 47 47 995<br>
+    Email: lazarmikov@gmail.com</p>
+
+    <hr>
+
+    <p style="text-align: center; margin-top: 40pt; font-style: italic; color: #888;">Thank you for taking the time to review this proposal and for considering Haunted for Digi.Tale support.</p>
+
+</body>
+</html>
