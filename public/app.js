@@ -13,16 +13,49 @@ if (shouldAutoplay && mainVideo) {
 // ——— define cue times ———
 const schedule = [
   // Flicker sequence at 5 seconds (cleaned up duplicates)
-  { t: 5.0, event: "haunted-on" },
-  { t: 5.3, event: "haunted-off" },
-  { t: 5.6, event: "haunted-on" },
-  { t: 5.9, event: "haunted-off" },
-  { t: 6.2, event: "haunted-on" },
-  { t: 6.5, event: "haunted-off" },
+ // First flicker at 8s (3 times)
+  { t: 8.0, event: "haunted-on" },
+  { t: 8.5, event: "haunted-off" },
+  { t: 9.5, event: "haunted-on" },
+  { t: 10.0, event: "haunted-off" },
+  { t: 11.0, event: "haunted-on" },
+  { t: 11.5, event: "haunted-off" },
   
-  // Other effects
-  { t: 20, event: "flash-red" },
-  { t: 31, event: "haunted-on" }
+  // Second flicker at 36s (1 slow flicker)
+  { t: 36.0, event: "haunted-on" },
+  { t: 37.0, event: "haunted-off" },
+  
+  // Third flicker at 1:16 (76s) - 4 times
+  { t: 76.0, event: "haunted-on" },
+  { t: 76.5, event: "haunted-off" },
+  { t: 77.5, event: "haunted-on" },
+  { t: 78.0, event: "haunted-off" },
+  { t: 79.0, event: "haunted-on" },
+  { t: 79.5, event: "haunted-off" },
+  { t: 80.5, event: "haunted-on" },
+  { t: 81.0, event: "haunted-off" },
+  
+  // Fourth flicker at 1:30 (90s) - on 2s, off, on 2s
+  { t: 90.0, event: "haunted-on" },
+  { t: 92.0, event: "haunted-off" },
+  { t: 92.5, event: "haunted-on" },
+  { t: 94.5, event: "haunted-off" },
+  
+  // At 3:23 (203s) - lights on, then red
+  { t: 203.0, event: "haunted-on" },
+  { t: 203.5, event: "flash-red" },
+  
+  // At 4:22 (262s) - 5 slow flashes
+  { t: 262.0, event: "haunted-on" },
+  { t: 263.0, event: "haunted-off" },
+  { t: 264.0, event: "haunted-on" },
+  { t: 265.0, event: "haunted-off" },
+  { t: 266.0, event: "haunted-on" },
+  { t: 267.0, event: "haunted-off" },
+  { t: 268.0, event: "haunted-on" },
+  { t: 269.0, event: "haunted-off" },
+  { t: 270.0, event: "haunted-on" },
+  { t: 271.0, event: "haunted-off" }
 ];
 
 // ——— convert to ms ———
