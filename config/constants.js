@@ -13,6 +13,16 @@ export const SENSOR_CONFIG = {
     endpointId: 'haunted-flash-red-sensor',
     friendlyName: 'Flash red',
     description: 'Contact sensor for red flash effect - sets lights to red'
+  },
+  'ghost-yes': {
+    endpointId: 'haunted-yes-sensor',
+    friendlyName: 'Ghost Yes',
+    description: 'Contact sensor for yes answer - flickers once'
+  },
+  'ghost-no': {
+    endpointId: 'haunted-no-sensor',
+    friendlyName: 'Ghost No',
+    description: 'Contact sensor for no answer - flickers twice'
   }
 };
 
